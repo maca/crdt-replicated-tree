@@ -28,15 +28,30 @@ incrementing counter or vector clock.
 Only two operations are allowed: adding after another element, and
 deleting an existing element, marking it as a tombstone.
 
+@docs Operation
+@docs ReplicaId
+@docs RGA
+@docs Error
+@docs init
+@docs add
+@docs addBranch
+@docs delete
+@docs batch
+@docs apply
+@docs applyLocal
+@docs operationsSince
+@docs lastReplicaTimestamp
+@docs nextTimestamp
+
 -}
 
 import Dict exposing (Dict, keys)
 import List exposing (head)
 import Result
 
-import RGA.Node as Node exposing (Node(..), NodeData, Path)
+import RGA.Node as Node exposing (Node(..), Path)
 import RGA.List exposing
-  ( ListFail(..)
+  ( Error(..)
   , replaceWhen
   , insertWhen
   , applyWhen
@@ -63,7 +78,17 @@ type alias RGA a =
 type ReplicaId = ReplicaId Int
 
 
-{-| Error for an attempted operation
+{-| Extra information about the failure when applying an
+operation
+
+`replicaId` is the id of the replica where the operation was
+generated
+
+`timestamp` is the timestamp of the attempted operation
+
+`path` is the path of the existing node, either a node intended
+to be deleted or the previous node for an `add` operation
+
 -}
 type alias Error =
   { replicaId: ReplicaId
@@ -81,7 +106,7 @@ type Operation a
 
 
 type alias UpdateFun a =
-  Maybe Int -> List (Node a) -> Result ListFail (List (Node a))
+  Maybe Int -> List (Node a) -> Result RGA.List.Error (List (Node a))
 
 
 type alias NodeFun a =
@@ -98,28 +123,38 @@ add maybeA ({timestamp, replicaId, pointer} as rga) =
       applyLocal (Add rga.replicaId newTimestamp pointer maybeA) rga
 
 
+{-| Add a branch to an RGA
+-}
 addBranch : Maybe a -> RGA a -> Result Error (RGA a)
 addBranch maybeA rga =
   add maybeA rga |> Result.map branchPointer
 
 
+{-| Mark an RGA node as a `Tombstone`
+-}
 delete : Path -> RGA a -> Result Error (RGA a)
 delete path ({replicaId} as rga) =
   applyLocal (Delete replicaId path) rga
 
 
+{-| Apply a list of functions that edit an RGA to an RGA
+-}
 batch : List (RGA a -> Result Error (RGA a)) -> RGA a
                                              -> Result Error (RGA a)
 batch funs rga =
   applyBatch funs rga
 
 
+{-| Apply an operation to an RGA
+-}
 apply : Operation a -> RGA a -> Result Error (RGA a)
 apply operation rga =
   applyLocal operation rga
     |> Result.map (\r -> { r | pointer = rga.pointer })
 
 
+{-| Apply a local operation to an RGA
+-}
 applyLocal : Operation a -> RGA a -> Result Error (RGA a)
 applyLocal operation rga =
   let
@@ -200,7 +235,7 @@ addFun : Maybe a -> Int
                  -> Path
                  -> Maybe Int
                  -> List (Node a)
-                 -> Result ListFail (List (Node a))
+                 -> Result RGA.List.Error (List (Node a))
 addFun maybeA timestamp path maybePreviousTs nodes =
   let
       node = Node.node maybeA timestamp path
@@ -215,7 +250,7 @@ addFun maybeA timestamp path maybePreviousTs nodes =
 
 deleteFun : Path -> Maybe Int
                  -> List (Node a)
-                 -> Result ListFail (List (Node a))
+                 -> Result RGA.List.Error (List (Node a))
 deleteFun path maybePreviousTs nodes =
   case maybePreviousTs of
     Just previousTs ->
@@ -231,16 +266,16 @@ deleteFun path maybePreviousTs nodes =
 
 updateBranch : UpdateFun a -> Path
                            -> Node a
-                           -> Result ListFail (Node a)
+                           -> Result RGA.List.Error (Node a)
 updateBranch fun path parent =
   case parent of
     Tombstone _ ->
       Err NotFound
 
-    Node ({children} as nodeData) ->
+    Node ({children} as payload) ->
       let
           updateChildren =
-            Result.map (\c -> Node { nodeData | children = c })
+            Result.map (\c -> Node { payload | children = c })
       in
           case path of
             [] ->
@@ -312,6 +347,8 @@ mergeTimestamp rga timestamp operationTimestamp =
         mergeTimestamp rga next operationTimestamp
 
 
+{-| Get the next timestamp for an RGA
+-}
 nextTimestamp : RGA a -> Int -> Int
 nextTimestamp {maxReplicas} timestamp =
   timestamp + (if maxReplicas < 2 then 1 else maxReplicas - 1)
@@ -327,6 +364,8 @@ buildPath timestamp path =
       List.reverse <| timestamp :: rest
 
 
+{-| Obtain a list of operations since a given timestamp
+-}
 operationsSince : Int -> RGA a -> List (Operation a)
 operationsSince ts {operations} =
   operationsSinceFold ts operations []
@@ -355,6 +394,8 @@ operationsSinceFold timestamp operations acc =
             operationsSinceFold timestamp os (o :: acc)
 
 
+{-| Last known timestamp for a given replica
+-}
 lastReplicaTimestamp : Int -> RGA a -> Int
 lastReplicaTimestamp rid {replicas} =
   Dict.get rid replicas |> Maybe.withDefault -1

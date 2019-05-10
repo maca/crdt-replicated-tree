@@ -1,5 +1,5 @@
 module RGA.List exposing
-  ( ListFail(..)
+  ( Error(..)
   , find
   , applyWhen
   , insertWhen
@@ -9,7 +9,7 @@ module RGA.List exposing
 import Result exposing (Result(..))
 
 
-type ListFail
+type Error
   = NotFound
   | ApplicationFailed
   | AlreadyApplied
@@ -31,21 +31,21 @@ find predicate list =
 
 insertWhen : (a -> Bool) -> a
                          -> List a
-                         -> Result ListFail (List a)
+                         -> Result Error (List a)
 insertWhen predicate elem list =
   applyWhen predicate (\x -> Ok [elem, x]) list
 
 
 replaceWhen : (a -> Bool) -> a
                           -> List a
-                          -> Result ListFail (List a)
+                          -> Result Error (List a)
 replaceWhen predicate elem list =
   applyWhen predicate (always (Ok [elem])) list
 
 
 applyWhen : (a -> Bool) -> (a -> Result f (List a))
                         -> List a
-                        -> Result ListFail (List a)
+                        -> Result Error (List a)
 applyWhen predicate fun list =
   applyWhenHelp predicate fun [] list
 
@@ -53,7 +53,7 @@ applyWhen predicate fun list =
 applyWhenHelp : (a -> Bool) -> (a -> Result f (List a))
                             -> List a
                             -> List a
-                            -> Result ListFail (List a)
+                            -> Result Error (List a)
 applyWhenHelp predicate fun acc list =
   case list of
     [] ->

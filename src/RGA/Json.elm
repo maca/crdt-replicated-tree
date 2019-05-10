@@ -1,6 +1,9 @@
 module RGA.Json exposing (operationEncoder, operationDecoder)
 
 {-| RGA JSON serialization
+
+@docs operationEncoder
+@docs operationDecoder
 -}
 
 

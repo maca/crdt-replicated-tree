@@ -434,7 +434,7 @@ describeOperationsSince description =
 
 expectRGANode path exp result =
   expect (\rga ->
-    Expect.equal (Just exp) (Node.get path rga.root)) result
+    Expect.equal (Just exp) (Node.descendant path rga.root)) result
 
 
 expectRGATimestamp exp result =
