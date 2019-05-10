@@ -1,7 +1,7 @@
-module RGA.Serialization exposing
-  ( opEncoder
-  , opDecoder
-  )
+module RGA.Json exposing (operationEncoder, operationDecoder)
+
+{-| RGA JSON serialization
+-}
 
 
 import Json.Decode as Decode exposing
@@ -22,9 +22,11 @@ import Json.Encode as Encode exposing
 import RGA exposing (Operation(..), ReplicaId(..))
 
 
-
-opEncoder : (a -> Value) -> Operation a -> Value
-opEncoder encoder operation =
+{-| Encoder for an operation, expects a function that takes
+anything and returns a value
+-}
+operationEncoder : (a -> Value) -> Operation a -> Value
+operationEncoder encoder operation =
   case operation of
     Add (ReplicaId id) ts path a ->
       Encode.object
@@ -47,18 +49,20 @@ opEncoder encoder operation =
     Batch operations ->
       Encode.object
         [ ( "op", string "batch" )
-        , ( "ops", list (opEncoder encoder) operations )
+        , ( "ops", list (operationEncoder encoder) operations )
         ]
 
 
-opDecoder : Decoder a -> Decoder (Operation a)
-opDecoder decoder =
+{-| Decoder for an operation
+-}
+operationDecoder : Decoder a -> Decoder (Operation a)
+operationDecoder decoder =
   (field "op" Decode.string)
-    |> Decode.andThen (opDecoderHelp decoder)
+    |> Decode.andThen (operationDecoderHelp decoder)
 
 
-opDecoderHelp : Decoder a -> String -> Decoder (Operation a)
-opDecoderHelp decoder operationType =
+operationDecoderHelp : Decoder a -> String -> Decoder (Operation a)
+operationDecoderHelp decoder operationType =
   case operationType of
     "add" ->
       Decode.map4 Add
@@ -74,7 +78,7 @@ opDecoderHelp decoder operationType =
 
     "batch" ->
       Decode.map Batch
-        (field "ops" <| Decode.list (opDecoder decoder))
+        (field "ops" <| Decode.list (operationDecoder decoder))
 
     _ ->
       Decode.succeed <| Batch []

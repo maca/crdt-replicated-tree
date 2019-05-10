@@ -1,4 +1,4 @@
-module RGASerializationTest exposing (..)
+module JsonTest exposing (..)
 
 import Bitwise
 import Dict exposing (Dict, fromList, empty)
@@ -13,9 +13,9 @@ import List exposing (map, reverse)
 
 import RGA exposing (Operation(..), ReplicaId(..))
 
-import RGA.Serialization exposing
-  ( opEncoder
-  , opDecoder
+import RGA.Json exposing
+  ( operationEncoder
+  , operationDecoder
   )
 
 type Data = Data
@@ -32,10 +32,10 @@ suite = describe "encode/decode"
             Add (ReplicaId 1) 3 [1, 2] data
 
           value =
-            opEncoder dataEncoder operation
+            operationEncoder dataEncoder operation
 
           result =
-            decodeValue (opDecoder dataDecoder) value
+            decodeValue (operationDecoder dataDecoder) value
       in
           expectResult operation result
 
@@ -45,10 +45,10 @@ suite = describe "encode/decode"
             Delete (ReplicaId 1) [1, 2]
 
           value =
-            opEncoder dataEncoder operation
+            operationEncoder dataEncoder operation
 
           result =
-            decodeValue (opDecoder dataDecoder) value
+            decodeValue (operationDecoder dataDecoder) value
       in
           expectResult operation result
 
@@ -62,10 +62,10 @@ suite = describe "encode/decode"
               ]
 
           value =
-            opEncoder dataEncoder operation
+            operationEncoder dataEncoder operation
 
           result =
-            decodeValue (opDecoder dataDecoder) value
+            decodeValue (operationDecoder dataDecoder) value
       in
           expectResult operation result
     ]

@@ -1,4 +1,4 @@
-module RGAListTest exposing (..)
+module ListTest exposing (..)
 
 import Result exposing (Result(..))
 

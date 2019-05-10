@@ -2,8 +2,7 @@ module RGA exposing
   ( Operation(..)
   , ReplicaId(..)
   , RGA
-  , RGAResult
-  , RGAFail
+  , Error
   , init
   , add
   , addBranch
@@ -15,6 +14,21 @@ module RGA exposing
   , lastReplicaTimestamp
   , nextTimestamp
   )
+
+{-| Implementation of RGA (a Conflict-free Replicated Datatype)
+modified to deal with distributed graphs.
+
+CRDTs are datatypes that can be replicated across many nodes, edited
+independently and reconciled excluding the posiblity of conflict.
+Making them useful for applications where state has to be syncronized
+with no manual conflict resolution, such as distributed text editors.
+
+Each element in a Replicated Growing Array is identified by an
+incrementing counter or vector clock. 
+Only two operations are allowed: adding after another element, and
+deleting an existing element, marking it as a tombstone.
+
+-}
 
 import Dict exposing (Dict, keys)
 import List exposing (head)
@@ -30,22 +44,10 @@ import RGA.List exposing
   )
 
 
-type ReplicaId = ReplicaId Int
-
-
-type alias RGAFail =
-  { replica: ReplicaId
-  , timestamp: Int
-  , path: Path
-  }
-
-
-type alias RGAResult a =
-  Result RGAFail (RGA a)
-
-
+{-| Represent a Replicated Distributed Graph
+-}
 type alias RGA a =
-  { id: ReplicaId
+  { replicaId: ReplicaId
   , maxReplicas: Int
   , root : Node a
   , timestamp: Int
@@ -56,6 +58,28 @@ type alias RGA a =
   }
 
 
+{-| The id for a replica, should be unique per replica
+-}
+type ReplicaId = ReplicaId Int
+
+
+{-| Error for an attempted operation
+-}
+type alias Error =
+  { replicaId: ReplicaId
+  , timestamp: Int
+  , path: Path
+  }
+
+
+{-| Represents an RGA operation
+-}
+type Operation a
+  = Add ReplicaId Int Path (Maybe a)
+  | Delete ReplicaId Path
+  | Batch (List (Operation a))
+
+
 type alias UpdateFun a =
   Maybe Int -> List (Node a) -> Result ListFail (List (Node a))
 
@@ -64,53 +88,49 @@ type alias NodeFun a =
   Path -> Maybe Int -> Node a
 
 
-type Operation a
-  = Add ReplicaId Int Path (Maybe a)
-  | Delete ReplicaId Path
-  | Batch (List (Operation a))
-
-
-
-add : Maybe a -> RGA a -> RGAResult a
-add maybeA ({timestamp, id, pointer} as rga) =
+{-| Represents an RGA operation
+-}
+add : Maybe a -> RGA a -> Result Error (RGA a)
+add maybeA ({timestamp, replicaId, pointer} as rga) =
   let
       newTimestamp = nextTimestamp rga timestamp
   in
-      applyLocal (Add rga.id newTimestamp pointer maybeA) rga
+      applyLocal (Add rga.replicaId newTimestamp pointer maybeA) rga
 
 
-addBranch : Maybe a -> RGA a -> RGAResult a
+addBranch : Maybe a -> RGA a -> Result Error (RGA a)
 addBranch maybeA rga =
   add maybeA rga |> Result.map branchPointer
 
 
-delete : Path -> RGA a -> RGAResult a
-delete path ({id} as rga) =
-  applyLocal (Delete id path) rga
+delete : Path -> RGA a -> Result Error (RGA a)
+delete path ({replicaId} as rga) =
+  applyLocal (Delete replicaId path) rga
 
 
-batch : List (RGA a -> RGAResult a) -> RGA a -> RGAResult a
+batch : List (RGA a -> Result Error (RGA a)) -> RGA a
+                                             -> Result Error (RGA a)
 batch funs rga =
   applyBatch funs rga
 
 
-apply : Operation a -> RGA a -> RGAResult a
+apply : Operation a -> RGA a -> Result Error (RGA a)
 apply operation rga =
   applyLocal operation rga
     |> Result.map (\r -> { r | pointer = rga.pointer })
 
 
-applyLocal : Operation a -> RGA a -> RGAResult a
+applyLocal : Operation a -> RGA a -> Result Error (RGA a)
 applyLocal operation rga =
   let
-      mapResult replica timestamp path result =
+      mapResult replicaId timestamp path result =
         case result of
           Err AlreadyApplied ->
             Ok { rga | lastOperation = Batch [] }
 
           Err _ ->
             Err
-              { replica = replica
+              { replicaId = replicaId
               , timestamp = timestamp
               , path = path
               }
@@ -118,7 +138,7 @@ applyLocal operation rga =
           Ok root ->
             let
                 update =
-                  updateTimestamp replica timestamp
+                  updateTimestamp replicaId timestamp
                     >> appendOperation operation
                     >> updatePointer timestamp path
             in
@@ -161,9 +181,9 @@ applyBatch funcs rga =
   batchFold rga (Ok { rga | lastOperation = Batch [] }) funcs
 
 
-batchFold : RGA a -> RGAResult a
-                  -> List (RGA a -> RGAResult a)
-                  -> RGAResult a
+batchFold : RGA a -> Result Error (RGA a)
+                  -> List (RGA a -> Result Error (RGA a))
+                  -> Result Error (RGA a)
 batchFold rga result opFuns =
   case opFuns of
     [] ->
@@ -340,12 +360,14 @@ lastReplicaTimestamp rid {replicas} =
   Dict.get rid replicas |> Maybe.withDefault -1
 
 
+{-| Build an RGA
+-}
 init : { id: Int, maxReplicas: Int } -> RGA a
 init {id, maxReplicas} =
   let
       operation = Add (ReplicaId id) -1 [0] Nothing
       rga =
-        { id = ReplicaId id
+        { replicaId = ReplicaId id
         , maxReplicas = maxReplicas
         , operations = []
         , pointer = []
