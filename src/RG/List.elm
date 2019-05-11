@@ -1,4 +1,4 @@
-module RGA.List exposing
+module RG.List exposing
   ( Error(..)
   , find
   , applyWhen

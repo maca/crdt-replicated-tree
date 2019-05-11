@@ -11,9 +11,9 @@ import Fuzz exposing (Fuzzer, int, intRange, list, string)
 import Test exposing (..)
 import List exposing (map, reverse)
 
-import RGA exposing (Operation(..), ReplicaId(..))
+import RG exposing (Operation(..), ReplicaId(..))
 
-import RGA.Json exposing
+import RG.Json exposing
   ( operationEncoder
   , operationDecoder
   )

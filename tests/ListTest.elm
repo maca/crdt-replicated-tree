@@ -5,12 +5,12 @@ import Result exposing (Result(..))
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer, int, intRange, list, string)
 import Test exposing (..)
-import RGA.List exposing (find, insertWhen, replaceWhen)
+import RG.List exposing (find, insertWhen, replaceWhen)
 
-import RGA.List as NodeList
+import RG.List as NodeList
 
 suite : Test
-suite = describe "RGA List"
+suite = describe "RG List"
   [ describe "insertWhen"
     [ test "inserts when predicate is satisfied" <| \_ ->
       let

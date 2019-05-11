@@ -1,4 +1,4 @@
-module RGA.Node exposing
+module RG.Node exposing
   ( Node(..)
   , Path
   , root
@@ -9,10 +9,11 @@ module RGA.Node exposing
   , timestamp
   , path
   , descendant
-  , match
+  , hasTimestamp
   )
 
-{-| Functions and types for modeling a graph
+{-| This module implements types and functions to find, get
+values from, and compare nodes
 
 @docs Node
 @docs Path
@@ -24,36 +25,32 @@ module RGA.Node exposing
 @docs timestamp
 @docs path
 @docs descendant
-@docs match
+@docs hasTimestamp
 
 -}
 
-import RGA.List as List
+import RG.List as List
 import Dict exposing (Dict)
 
-{-| Node's path is represented as a list of integers
+{-| The path of the node is represented as a list of integers
 -}
 type alias Path =
   List Int
 
 
 {-| Node can be either a branch or leaf `Node` with optional
-data or a `Tombstone` wich represents a removed Node
+data or a `Tombstone` representing a removed Node
  -}
 type Node a
-  = Node (Payload a)
+  = Node { timestamp: Int
+         , path: Path
+         , children: List (Node a)
+         , data: Maybe a
+         }
   | Tombstone { timestamp: Int, path: Path }
 
 
-type alias Payload a =
-  { data: Maybe a
-  , children: List (Node a)
-  , timestamp: Int
-  , path: Path
-  }
-
-
-{-| Build a graph root node
+{-| Build a root node
 
     path root == []
     data root == Nothing
@@ -64,8 +61,7 @@ root =
   node Nothing 0 []
 
 
-{-| Given `Maybe` data, the timestamp and path build a
-graph node
+{-| Build a node providing `Maybe` data, timestamp and path
 
     timestamp (node (Just 'a') 1 [0, 1]) == 1
     path (node (Just 'a') 1 [0, 1]) == [0, 1]
@@ -81,14 +77,18 @@ node maybeA ts p =
     }
 
 
-{-| Build a tombstone provided a timestamp and path
+{-| Build a tombstone providing timestamp and path
+
+    timestamp (tombstone 1 [0, 1]) == 1
+    path (tombstone 1 [0, 1]) == [0, 1]
+    data (tombstone 1 [0, 1]) == Nothing
 -}
 tombstone : Int -> Path -> Node a
 tombstone ts p =
   Tombstone { timestamp = ts, path = p }
 
 
-{-| Return a list of children for a given node
+{-| Return a list of a nodes' children
 -}
 children : Node a -> List (Node a)
 children n =
@@ -97,16 +97,14 @@ children n =
     Tombstone _ -> []
 
 
-{-| Return `Just` a children or `Nothing` if the timestamp does
-not match any children's timestamp
+{-| Return `Just` a nodes' children if found by timestamp or `Nothing`
 -}
-child : Node a -> Int -> Maybe (Node a)
-child n ts =
+child : Int -> Node a -> Maybe (Node a)
+child ts n =
   children n |> List.find (timestamp >> ((==) ts))
 
 
-{-| Return `Just` a descendant or `Nothing` if there is no
-descendant with the given path
+{-| Return `Just` a nodes' descendant if found by path or `Nothing`
 -}
 descendant : Path -> Node a -> Maybe (Node a)
 descendant nodePath n =
@@ -115,13 +113,16 @@ descendant nodePath n =
       Nothing
 
     [ts] ->
-      child n ts
+      child ts n
 
     ts :: tss ->
-      child n ts |> Maybe.andThen (descendant tss)
+      child ts n |> Maybe.andThen (descendant tss)
 
 
-{-| Return the payload of a node
+{-| Return the data of a node
+
+    data (node (Just 'a') 1 [0, 1]) == Just 'a'
+    data (tombstone 1 [0, 1]) == Nothing
 -}
 data : Node a -> Maybe a
 data n =
@@ -131,6 +132,8 @@ data n =
 
 
 {-| Return the timestamp of a node
+
+    timestamp (node (Just 'a') 1 [0, 1]) == 1
 -}
 timestamp : Node a -> Int
 timestamp n =
@@ -140,6 +143,8 @@ timestamp n =
 
 
 {-| Return the path of a node
+
+    path (node (Just 'a') 1 [0, 1]) == [0, 1]
 -}
 path : Node a -> Path
 path n =
@@ -148,10 +153,13 @@ path n =
     Tombstone rec -> rec.path
 
 
-{-| Determine wether two nodes have the same timestamp
+{-| Determine wether a node has a timestamp
+
+    hasTimestamp 1 (node (Just 'a') 1 [0, 1]) == True
+    hasTimestamp 1 (node (Just 'a') 2 [0, 2]) == False
 -}
-match : Int -> Node a -> Bool
-match ts n =
+hasTimestamp : Int -> Node a -> Bool
+hasTimestamp ts n =
   (timestamp n) == ts
 
 

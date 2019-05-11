@@ -1,6 +1,6 @@
-module RGA.Json exposing (operationEncoder, operationDecoder)
+module RG.Json exposing (operationEncoder, operationDecoder)
 
-{-| RGA JSON serialization
+{-| Replicated Graph JSON serialization
 
 @docs operationEncoder
 @docs operationDecoder
@@ -22,7 +22,7 @@ import Json.Encode as Encode exposing
   , string
   , list
   )
-import RGA exposing (Operation(..), ReplicaId(..))
+import RG exposing (Operation(..), ReplicaId(..))
 
 
 {-| Encoder for an operation, expects a function that takes

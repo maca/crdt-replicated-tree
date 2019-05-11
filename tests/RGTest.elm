@@ -1,4 +1,4 @@
-module RGATest exposing (..)
+module RGTest exposing (..)
 
 import Array exposing (Array)
 import Dict exposing (Dict)
@@ -8,9 +8,8 @@ import Fuzz exposing (Fuzzer, int, intRange, list, string)
 import Test exposing (..)
 import List exposing (map, reverse)
 
-import RGA exposing
+import RG exposing
   ( Operation(..)
-  , RGA
   , ReplicaId
   -- , add
   -- , addBranch
@@ -20,7 +19,7 @@ import RGA exposing
   , applyLocal
   , operationsSince
   )
-import RGA.Node as Node exposing
+import RG.Node as Node exposing
   ( Node
   , node
   , tombstone
@@ -32,7 +31,7 @@ data = Just Data
 
 
 suite : Test
-suite = describe "RGA"
+suite = describe "RG"
   [ describeAdd
     "applies Add operation"
 
@@ -68,7 +67,7 @@ suite = describe "RGA"
 describeAdd description =
   let
       rga =
-        RGA.init { id = 0, maxReplicas = 1 }
+        RG.init { id = 0, maxReplicas = 1 }
 
       operation =
         Add rga.replicaId 1 [-1] data
@@ -81,13 +80,13 @@ describeAdd description =
           <| always (Expect.ok result)
 
         , test "apply Add result updates rga nodes" <| \_ ->
-          expectRGANode [1] (node data 1 [1]) result
+          expectNode [1] (node data 1 [1]) result
 
         , test "apply Add increments timestamp"
-          <| always (expectRGATimestamp 1 result)
+          <| always (expectTimestamp 1 result)
 
         , test "sets rga pointer"
-          <| always (expectRGAPointer [1] result)
+          <| always (expectPointer [1] result)
 
         , test "apply Add sets rga operations" <| \_ ->
           let
@@ -96,7 +95,7 @@ describeAdd description =
                   , Add rga.replicaId -1 [0] Nothing
                   ]
           in
-              expectRGAOperations operations result
+              expectOperations operations result
 
         , test "sets last operation"
           <| always (expectLastOperation operation result)
@@ -106,7 +105,7 @@ describeAdd description =
 describeBatch description =
   let
       rga =
-        RGA.init { id = 0, maxReplicas = 1 }
+        RG.init { id = 0, maxReplicas = 1 }
 
       batch = Batch
         [ Add rga.replicaId 1 [-1] data
@@ -121,13 +120,13 @@ describeBatch description =
           <| always (Expect.ok result)
 
         , test "apply Batch adds first node" <| \_ ->
-          expectRGANode [1] (node data 1 [1]) result
+          expectNode [1] (node data 1 [1]) result
 
         , test "apply Batch adds second node" <| \_ ->
-          expectRGANode [2] (node data 2 [2]) result
+          expectNode [2] (node data 2 [2]) result
 
         , test "apply Batch increments timestamp"
-          <| always (expectRGATimestamp 2 result)
+          <| always (expectTimestamp 2 result)
 
         , test "apply Batch sets rga operations" <| \_ ->
           let
@@ -137,7 +136,7 @@ describeBatch description =
                 , Add rga.replicaId -1 [0] Nothing
                 ]
           in
-              expectRGAOperations operations result
+              expectOperations operations result
 
         , test "sets last operation"
           <| always (expectLastOperation batch result)
@@ -147,7 +146,7 @@ describeBatch description =
 describeAddIsIdempotent description =
   let
       rga =
-        RGA.init { id = 0, maxReplicas = 1 }
+        RG.init { id = 0, maxReplicas = 1 }
 
       batch = Batch
         [ Add rga.replicaId 1 [-1] data
@@ -165,10 +164,10 @@ describeAddIsIdempotent description =
           <| always (Expect.ok result)
 
         , test "apply Add multiple times result updates rga nodes" <| \_ ->
-          expectRGANode [1] (node data 1 [1]) result
+          expectNode [1] (node data 1 [1]) result
 
         , test "apply Add multiple times increments timestamp"
-          <| always (expectRGATimestamp 1 result)
+          <| always (expectTimestamp 1 result)
 
         , test "apply Add multiple times sets rga operations" <| \_ ->
           let
@@ -177,7 +176,7 @@ describeAddIsIdempotent description =
                 , Add rga.replicaId -1 [0] Nothing
                 ]
           in
-              expectRGAOperations operations result
+              expectOperations operations result
 
         , test "sets last operation" <| \_ ->
           let
@@ -191,7 +190,7 @@ describeAddIsIdempotent description =
 describeInsertionBetweenNodes _ =
   let
       rga =
-        RGA.init { id = 0, maxReplicas = 1 }
+        RG.init { id = 0, maxReplicas = 1 }
 
       batch = Batch
         [ Add rga.replicaId 1 [-1] data
@@ -207,16 +206,16 @@ describeInsertionBetweenNodes _ =
           <| always (Expect.ok result)
 
         , test "apply Add insert adds first node" <| \_ ->
-          expectRGANode [1] (node data 1 [1]) result
+          expectNode [1] (node data 1 [1]) result
 
         , test "apply Add insert adds second node" <| \_ ->
-          expectRGANode [2] (node data 2 [2]) result
+          expectNode [2] (node data 2 [2]) result
 
         , test "apply Add insert adds third node" <| \_ ->
-          expectRGANode [3] (node data 3 [3]) result
+          expectNode [3] (node data 3 [3]) result
 
         , test "apply Add insert increments timestamp"
-          <| always (expectRGATimestamp 3 result)
+          <| always (expectTimestamp 3 result)
 
         , test "apply Add insert sets rga operations" <| \_ ->
           let
@@ -227,7 +226,7 @@ describeInsertionBetweenNodes _ =
                   , Add rga.replicaId -1 [0] Nothing
                   ]
           in
-              expectRGAOperations operations result
+              expectOperations operations result
 
         , test "sets last operation"
           <| always (expectLastOperation batch result)
@@ -237,7 +236,7 @@ describeInsertionBetweenNodes _ =
 describeAddLeaf description =
   let
       rga =
-        RGA.init { id = 0, maxReplicas = 1 }
+        RG.init { id = 0, maxReplicas = 1 }
 
       batch = Batch
         [ Add rga.replicaId 1 [-1] data
@@ -253,13 +252,13 @@ describeAddLeaf description =
           <| always (Expect.ok result)
 
         , test "apply Add leaf adds first leaf" <| \_ ->
-          expectRGANode [1, 2] (node data 2 [1, 2]) result
+          expectNode [1, 2] (node data 2 [1, 2]) result
 
         , test "apply Add leaf adds second leaf" <| \_ ->
-          expectRGANode [1, 3] (node data 3 [1, 3]) result
+          expectNode [1, 3] (node data 3 [1, 3]) result
 
         ,test "apply Add leaf increments timestamp"
-          <| always (expectRGATimestamp 3 result)
+          <| always (expectTimestamp 3 result)
 
         , test "apply Add leaf sets rga operations" <| \_ ->
           let
@@ -270,7 +269,7 @@ describeAddLeaf description =
                   , Add rga.replicaId -1 [0] Nothing
                   ]
           in
-              expectRGAOperations operations result
+              expectOperations operations result
 
         , test "sets last operation"
           <| always (expectLastOperation batch result)
@@ -281,7 +280,7 @@ describeBatchAtomicity description =
   test description <| \_ ->
     let
         rga =
-          RGA.init { id = 0, maxReplicas = 1 }
+          RG.init { id = 0, maxReplicas = 1 }
 
         batch = Batch
           [ Add rga.replicaId 1 [0] data
@@ -297,7 +296,7 @@ describeBatchAtomicity description =
 describeDelete description =
   let
       rga =
-        RGA.init { id = 0, maxReplicas = 1 }
+        RG.init { id = 0, maxReplicas = 1 }
 
       batch = Batch
         [ Add rga.replicaId 1 [-1] data
@@ -312,10 +311,10 @@ describeDelete description =
           <| always (Expect.ok result)
 
         , test "apply Delete doesn't increment timestamp"
-          <| always (expectRGATimestamp 1 result)
+          <| always (expectTimestamp 1 result)
 
         , test "apply Delete result updates rga nodes" <| \_ ->
-          expectRGANode [1] (tombstone 1 [1]) result
+          expectNode [1] (tombstone 1 [1]) result
 
         , test "sets last operation"
           <| always (expectLastOperation batch result)
@@ -325,7 +324,7 @@ describeDelete description =
 describeDeleteIsIdempotent description =
   let
       rga =
-        RGA.init { id = 0, maxReplicas = 1 }
+        RG.init { id = 0, maxReplicas = 1 }
 
       batch = Batch
         [ Add rga.replicaId 1 [-1] data
@@ -345,10 +344,10 @@ describeDeleteIsIdempotent description =
           <| always (Expect.ok result)
 
         , test "apply Add multiple times result updates rga nodes" <| \_ ->
-          expectRGANode [1] (tombstone 1 [1]) result
+          expectNode [1] (tombstone 1 [1]) result
 
         , test "apply Add multiple times increments timestamp"
-          <| always (expectRGATimestamp 1 result)
+          <| always (expectTimestamp 1 result)
 
         , test "apply Add multiple times sets rga operations" <| \_ ->
           let
@@ -358,7 +357,7 @@ describeDeleteIsIdempotent description =
                 , Add rga.replicaId -1 [0] Nothing
                 ]
           in
-              expectRGAOperations operations result
+              expectOperations operations result
 
         , test "sets last operation" <| \_ ->
           let
@@ -374,7 +373,7 @@ describeDeleteIsIdempotent description =
 describeOperationsSince description =
   let
       rga_ =
-        RGA.init { id = 0, maxReplicas = 1 }
+        RG.init { id = 0, maxReplicas = 1 }
 
       batch = Batch
         [ Add rga_.replicaId 1 [-1] data
@@ -432,20 +431,20 @@ describeOperationsSince description =
         ]
 
 
-expectRGANode path exp result =
+expectNode path exp result =
   expect (\rga ->
     Expect.equal (Just exp) (Node.descendant path rga.root)) result
 
 
-expectRGATimestamp exp result =
+expectTimestamp exp result =
   expect (\rga ->
     Expect.true
-      ("expected RGA `" ++ Debug.toString rga ++
+      ("expected RG `" ++ Debug.toString rga ++
       "` to have timestamp " ++ Debug.toString exp)
     (exp == rga.timestamp)) result
 
 
-expectRGAOperations exp result =
+expectOperations exp result =
   expect (\rga -> Expect.equal exp rga.operations) result
 
 
@@ -453,7 +452,7 @@ expectLastOperation exp result =
   expect (\rga -> Expect.equal exp rga.lastOperation) result
 
 
-expectRGAPointer exp result =
+expectPointer exp result =
   expect (\rga -> Expect.equal exp rga.pointer) result
 
 
