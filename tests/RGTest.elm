@@ -17,7 +17,6 @@ import RG exposing
   )
 import RG.Node as Node exposing
   ( Node
-  , node
   , tombstone
   )
 import RG.Operation as Operation exposing
@@ -83,7 +82,7 @@ testAdd description =
           <| always (Expect.ok result)
 
         , test "apply Add result updates rga nodes" <| \_ ->
-          expectNode [-1, 1] (node data 1 [-1, 1]) result
+          expectNode [-1, 1] (Node.init data [-1, 1]) result
 
         , test "apply Add increments timestamp"
           <| always (expectTimestamp 1 result)
@@ -118,10 +117,10 @@ testBatch description =
           <| always (Expect.ok result)
 
         , test "apply Batch adds first node" <| \_ ->
-          expectNode [-1, 1] (node data 1 [-1, 1]) result
+          expectNode [-1, 1] (Node.init data [-1, 1]) result
 
         , test "apply Batch adds second node" <| \_ ->
-          expectNode [-1, 2] (node data 2 [-1, 2]) result
+          expectNode [-1, 2] (Node.init data [-1, 2]) result
 
         , test "apply Batch increments timestamp"
           <| always (expectTimestamp 2 result)
@@ -165,10 +164,10 @@ testApplyBatch description =
           <| always (Expect.ok result)
 
         , test "apply Batch adds first node" <| \_ ->
-          expectNode [1] (node data 1 [1]) result
+          expectNode [1] (Node.init data [1]) result
 
         , test "apply Batch adds second node" <| \_ ->
-          expectNode [2] (node data 2 [2]) result
+          expectNode [2] (Node.init data [2]) result
 
         , test "apply Batch increments timestamp"
           <| always (expectTimestamp 2 result)
@@ -209,7 +208,7 @@ testAddIsIdempotent description =
           <| always (Expect.ok result)
 
         , test "apply Add multiple times result updates rga nodes" <| \_ ->
-          expectNode [1] (node data 1 [1]) result
+          expectNode [1] (Node.init data [1]) result
 
         , test "apply Add multiple times increments timestamp"
           <| always (expectTimestamp 1 result)
@@ -251,13 +250,13 @@ testInsertionBetweenNodes _ =
           <| always (Expect.ok result)
 
         , test "apply Add insert adds first node" <| \_ ->
-          expectNode [1] (node data 1 [1]) result
+          expectNode [1] (Node.init data [1]) result
 
         , test "apply Add insert adds second node" <| \_ ->
-          expectNode [2] (node data 2 [2]) result
+          expectNode [2] (Node.init data [2]) result
 
         , test "apply Add insert adds third node" <| \_ ->
-          expectNode [3] (node data 3 [3]) result
+          expectNode [3] (Node.init data [3]) result
 
         , test "apply Add insert increments timestamp"
           <| always (expectTimestamp 3 result)
@@ -297,10 +296,10 @@ testAddLeaf description =
           <| always (Expect.ok result)
 
         , test "apply Add leaf adds first leaf" <| \_ ->
-          expectNode [1, 2] (node data 2 [1, 2]) result
+          expectNode [1, 2] (Node.init data [1, 2]) result
 
         , test "apply Add leaf adds second leaf" <| \_ ->
-          expectNode [1, 3] (node data 3 [1, 3]) result
+          expectNode [1, 3] (Node.init data [1, 3]) result
 
         ,test "apply Add leaf increments timestamp"
           <| always (expectTimestamp 3 result)
@@ -359,7 +358,7 @@ testDelete description =
           <| always (expectTimestamp 1 result)
 
         , test "apply Delete result updates rga nodes" <| \_ ->
-          expectNode [1] (tombstone 1 [1]) result
+          expectNode [1] (tombstone [1]) result
 
         , test "sets last operation"
           <| always (expectLastOperation batch result)
@@ -389,7 +388,7 @@ testDeleteIsIdempotent description =
           <| always (Expect.ok result)
 
         , test "apply Add multiple times result updates rga nodes" <| \_ ->
-          expectNode [1] (tombstone 1 [1]) result
+          expectNode [1] (tombstone [1]) result
 
         , test "apply Add multiple times increments timestamp"
           <| always (expectTimestamp 1 result)

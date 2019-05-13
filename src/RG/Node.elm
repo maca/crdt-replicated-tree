@@ -1,8 +1,8 @@
 module RG.Node exposing
   ( Node(..)
   , Path
+  , init
   , root
-  , node
   , tombstone
   , children
   , data
@@ -17,8 +17,8 @@ values from, and compare nodes
 
 @docs Node
 @docs Path
+@docs init
 @docs root
-@docs node
 @docs tombstone
 @docs children
 @docs data
@@ -42,50 +42,48 @@ type alias Path =
 data or a `Tombstone` representing a removed Node
  -}
 type Node a
-  = Node { timestamp: Int
-         , path: Path
+  = Node { path: Path
          , children: List (Node a)
          , data: Maybe a
          }
-  | Tombstone { timestamp: Int, path: Path }
+  | Tombstone { path: Path }
 
 
-{-| Build a root node
+{-| Build a node
 
-    path root == []
-    data root == Nothing
-    timestamp root == 0
+    timestamp (node (Just 'a') [0, 1]) == 1
+    path (node (Just 'a') [0, 1]) == [0, 1]
+    data (node (Just 'a') [0, 1]) == Just 'a'
  -}
-root : Node a
-root =
-  node Nothing 0 []
-
-
-{-| Build a node providing `Maybe` data, timestamp and path
-
-    timestamp (node (Just 'a') 1 [0, 1]) == 1
-    path (node (Just 'a') 1 [0, 1]) == [0, 1]
-    data (node (Just 'a') 1 [0, 1]) == Just 'a'
- -}
-node : Maybe a -> Int -> Path -> Node a
-node maybeA ts p =
+init : Maybe a -> Path -> Node a
+init maybeA p =
   Node
     { data = maybeA
-    , timestamp = ts
     , path = p
     , children = []
     }
 
 
+{-| Build a root node
+
+    timestamp root == 0
+    path root == []
+    data root == Nothing
+ -}
+root : Node a
+root =
+  init Nothing []
+
+
 {-| Build a tombstone providing timestamp and path
 
-    timestamp (tombstone 1 [0, 1]) == 1
-    path (tombstone 1 [0, 1]) == [0, 1]
-    data (tombstone 1 [0, 1]) == Nothing
+    timestamp (tombstone [0, 1]) == 1
+    path (tombstone [0, 1]) == [0, 1]
+    data (tombstone [0, 1]) == Nothing
 -}
-tombstone : Int -> Path -> Node a
-tombstone ts p =
-  Tombstone { timestamp = ts, path = p }
+tombstone : Path -> Node a
+tombstone p =
+  Tombstone { path = p }
 
 
 {-| Return a list of a nodes' children
@@ -121,8 +119,8 @@ descendant nodePath n =
 
 {-| Return the data of a node
 
-    data (node (Just 'a') 1 [0, 1]) == Just 'a'
-    data (tombstone 1 [0, 1]) == Nothing
+    data (node (Just 'a') [0, 1]) == Just 'a'
+    data (tombstone [0, 1]) == Nothing
 -}
 data : Node a -> Maybe a
 data n =
@@ -133,18 +131,16 @@ data n =
 
 {-| Return the timestamp of a node
 
-    timestamp (node (Just 'a') 1 [0, 1]) == 1
+    timestamp (node (Just 'a') [0, 1]) == 1
 -}
 timestamp : Node a -> Int
 timestamp n =
-  case n of
-    Node rec -> rec.timestamp
-    Tombstone rec -> rec.timestamp
+  path n |> List.reverse |> List.head |> Maybe.withDefault 0
 
 
 {-| Return the path of a node
 
-    path (node (Just 'a') 1 [0, 1]) == [0, 1]
+    path (node (Just 'a') [0, 1]) == [0, 1]
 -}
 path : Node a -> Path
 path n =
@@ -155,8 +151,8 @@ path n =
 
 {-| Determine wether a node has a timestamp
 
-    hasTimestamp 1 (node (Just 'a') 1 [0, 1]) == True
-    hasTimestamp 1 (node (Just 'a') 2 [0, 2]) == False
+    hasTimestamp 1 (node (Just 'a') [0, 1]) == True
+    hasTimestamp 1 (node (Just 'a') [0, 2]) == False
 -}
 hasTimestamp : Int -> Node a -> Bool
 hasTimestamp ts n =

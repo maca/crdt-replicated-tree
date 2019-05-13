@@ -123,14 +123,14 @@ addBranch maybeA rga =
   add maybeA rga |> Result.map branchPointer
 
 
-{-| Mark an RG node as a `Tombstone`
+{-| Mark a RG node as a `Tombstone`
 -}
 delete : Path -> RG a -> Result Error (RG a)
 delete path ({replicaId} as rga) =
   applyLocal (Delete replicaId path) rga
 
 
-{-| Apply a list of functions that edit an RG to an RG
+{-| Apply a list of functions that edit a RG to a RG
 -}
 batch : List (RG a -> Result Error (RG a)) -> RG a
                                            -> Result Error (RG a)
@@ -184,7 +184,7 @@ applyLocal operation rga =
                   |> List.reverse
 
               fun =
-                addFun data timestamp nodePath
+                addFun data nodePath
           in
               updateBranch fun path rga.root
                 |> mapResult replica timestamp path
@@ -225,14 +225,13 @@ batchFold rga result opFuns =
           batchFold rga ((Result.andThen fun) result) fs
 
 
-addFun : Maybe a -> Int
-                 -> Path
+addFun : Maybe a -> Path
                  -> Maybe Int
                  -> List (Node a)
                  -> Result RG.List.Error (List (Node a))
-addFun maybeA timestamp path maybePreviousTs nodes =
+addFun maybeA path maybePreviousTs nodes =
   let
-      node = Node.node maybeA timestamp path
+      node = Node.init maybeA path
   in
       case maybePreviousTs of
         Just previousTs ->
@@ -249,7 +248,7 @@ deleteFun path maybePreviousTs nodes =
   case maybePreviousTs of
     Just previousTs ->
       let
-          node = Node.tombstone previousTs path
+          node = Node.tombstone path
           pred = Node.hasTimestamp previousTs
       in
           replaceWhen pred node nodes
@@ -358,7 +357,7 @@ buildPath timestamp path =
       List.reverse <| timestamp :: rest
 
 
-{-| Build an RG
+{-| Build a RG
 -}
 init : { replicaId: Int, maxReplicas: Int } -> RG a
 init {replicaId, maxReplicas} =
