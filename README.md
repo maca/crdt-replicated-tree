@@ -9,9 +9,9 @@ collaborative text editor.
 For this Replicated Graph, children of each branch are represented as an
 RGA.
 
-As with an RGA only two operations are permited: **insert** a node after
+As with an RGA only two operations are permited: **add** a node after
 a position, and **delete** a node at a position, although deleting does
-not actually removes the node from the list but marks it a `tombstone`,
+not actually removes the node from the list but marks it a `Tombstone`,
 as other nodes can always be inserted after it.
 
 Because each Replicated Graph must have a unique id across the network,
@@ -19,3 +19,6 @@ it is recommended for this id to be assigned by a coordinating
 server that keeps track of all replicas.
 
 
+```
+
+```

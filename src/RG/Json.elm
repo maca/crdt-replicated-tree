@@ -22,7 +22,9 @@ import Json.Encode as Encode exposing
   , string
   , list
   )
-import RG exposing (Operation(..), ReplicaId(..))
+import RG.Operation exposing (Operation(..), ReplicaId(..))
+
+import Dict exposing (Dict)
 
 
 {-| Encoder for an operation, expects a function that takes
@@ -85,5 +87,15 @@ operationDecoderHelp decoder operationType =
 
     _ ->
       Decode.succeed <| Batch []
+
+
+
+
+{-| Last known timestamp for a given replica
+not used yet
+-}
+lastReplicaTimestamp : Int -> Dict Int Int -> Int
+lastReplicaTimestamp rid replicas =
+  Dict.get rid replicas |> Maybe.withDefault -1
 
 

@@ -12,7 +12,7 @@ module RG.Node exposing
   , hasTimestamp
   )
 
-{-| This module implements types and functions to find, get
+{-| This module implements types and functions to build, find, get
 values from, and compare nodes
 
 @docs Node

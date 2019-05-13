@@ -11,7 +11,7 @@ import Fuzz exposing (Fuzzer, int, intRange, list, string)
 import Test exposing (..)
 import List exposing (map, reverse)
 
-import RG exposing (Operation(..), ReplicaId(..))
+import RG.Operation exposing (Operation(..), ReplicaId(..))
 
 import RG.Json exposing
   ( operationEncoder

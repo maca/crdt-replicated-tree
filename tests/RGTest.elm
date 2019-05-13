@@ -9,20 +9,20 @@ import Test exposing (..)
 import List exposing (map, reverse)
 
 import RG exposing
-  ( Operation(..)
-  , ReplicaId
-  -- , add
-  -- , addBranch
+  ( batch
   -- , delete
-  -- , batch
+  -- , addBranch
+  , add
   , apply
-  , applyLocal
-  , operationsSince
   )
 import RG.Node as Node exposing
   ( Node
   , node
   , tombstone
+  )
+import RG.Operation as Operation exposing
+  ( Operation(..)
+  , ReplicaId(..)
   )
 
 type Data = Data
@@ -32,31 +32,34 @@ data = Just Data
 
 suite : Test
 suite = describe "RG"
-  [ describeAdd
+  [ testAdd
     "applies Add operation"
 
-  , describeBatch
+  , testBatch
     "performs several operations"
 
-  , describeBatchAtomicity
+  , testApplyBatch
+    "applies several remote operations"
+
+  , testBatchAtomicity
     "batch fails if an operation fails"
 
-  , describeAddIsIdempotent
+  , testAddIsIdempotent
     "applying Add multiple times is the same as once"
 
-  , describeInsertionBetweenNodes
+  , testInsertionBetweenNodes
     "apply Add inserts at any position"
 
-  , describeAddLeaf
+  , testAddLeaf
     "inserts node as children of nested branch"
 
-  , describeDelete
+  , testDelete
     "Delete marks node as tombstone"
 
-  , describeDeleteIsIdempotent
+  , testDeleteIsIdempotent
     "apply same Delete operation yields same results"
 
-  , describeOperationsSince
+  , testOperationsSince
     "gets operations since a timestamp"
 
   --   -- , test "apply Delete locally sets pointer" <| \_ ->
@@ -64,34 +67,34 @@ suite = describe "RG"
   -- , describe "local operations"
   ]
 
-describeAdd description =
+testAdd description =
   let
       rga =
-        RG.init { id = 0, maxReplicas = 1 }
+        RG.init { replicaId = 0, maxReplicas = 1 }
 
       operation =
-        Add rga.replicaId 1 [-1] data
+        Add rga.replicaId 1 [-1, 0] data
 
       result =
-        applyLocal operation rga
+        add data rga
   in
       describe description
         [ test "apply Add succeeds"
           <| always (Expect.ok result)
 
         , test "apply Add result updates rga nodes" <| \_ ->
-          expectNode [1] (node data 1 [1]) result
+          expectNode [-1, 1] (node data 1 [-1, 1]) result
 
         , test "apply Add increments timestamp"
           <| always (expectTimestamp 1 result)
 
         , test "sets rga pointer"
-          <| always (expectPointer [1] result)
+          <| always (expectPointer [-1, 1] result)
 
         , test "apply Add sets rga operations" <| \_ ->
           let
               operations =
-                  [ Add rga.replicaId 1 [-1] data
+                  [ Add rga.replicaId 1 [-1, 0] data
                   , Add rga.replicaId -1 [0] Nothing
                   ]
           in
@@ -102,10 +105,52 @@ describeAdd description =
         ]
 
 
-describeBatch description =
+testBatch description =
   let
       rga =
-        RG.init { id = 0, maxReplicas = 1 }
+        RG.init { replicaId = 0, maxReplicas = 1 }
+
+      result =
+        batch [add data, add data] rga
+  in
+      describe description
+        [ test "apply Batch succeeds"
+          <| always (Expect.ok result)
+
+        , test "apply Batch adds first node" <| \_ ->
+          expectNode [-1, 1] (node data 1 [-1, 1]) result
+
+        , test "apply Batch adds second node" <| \_ ->
+          expectNode [-1, 2] (node data 2 [-1, 2]) result
+
+        , test "apply Batch increments timestamp"
+          <| always (expectTimestamp 2 result)
+
+        , test "apply Batch sets rga operations" <| \_ ->
+          let
+              operations =
+                [ Add rga.replicaId 2 [-1, 1] data
+                , Add rga.replicaId 1 [-1, 0] data
+                , Add rga.replicaId -1 [0] Nothing
+                ]
+          in
+              expectOperations operations result
+
+        , test "sets last operation" <| \_ ->
+          let
+              operation = Batch
+                [ Add rga.replicaId 1 [-1, 0] data
+                , Add rga.replicaId 2 [-1, 1] data
+                ]
+          in
+              expectLastOperation operation result
+        ]
+
+
+testApplyBatch description =
+  let
+      rga =
+        RG.init { replicaId = 0, maxReplicas = 1 }
 
       batch = Batch
         [ Add rga.replicaId 1 [-1] data
@@ -113,7 +158,7 @@ describeBatch description =
         ]
 
       result =
-        applyLocal batch rga
+        apply batch rga
   in
       describe description
         [ test "apply Batch succeeds"
@@ -143,10 +188,10 @@ describeBatch description =
         ]
 
 
-describeAddIsIdempotent description =
+testAddIsIdempotent description =
   let
       rga =
-        RG.init { id = 0, maxReplicas = 1 }
+        RG.init { replicaId = 0, maxReplicas = 1 }
 
       batch = Batch
         [ Add rga.replicaId 1 [-1] data
@@ -156,7 +201,7 @@ describeAddIsIdempotent description =
         ]
 
       result =
-        applyLocal batch rga
+        apply batch rga
   in
       describe description
 
@@ -187,10 +232,10 @@ describeAddIsIdempotent description =
         ]
 
 
-describeInsertionBetweenNodes _ =
+testInsertionBetweenNodes _ =
   let
       rga =
-        RG.init { id = 0, maxReplicas = 1 }
+        RG.init { replicaId = 0, maxReplicas = 1 }
 
       batch = Batch
         [ Add rga.replicaId 1 [-1] data
@@ -199,7 +244,7 @@ describeInsertionBetweenNodes _ =
         ]
 
       result =
-        applyLocal batch rga
+        apply batch rga
   in
       describe "apply Add inserts between nodes"
         [ test "apply Add insert succeeds"
@@ -233,10 +278,10 @@ describeInsertionBetweenNodes _ =
         ]
 
 
-describeAddLeaf description =
+testAddLeaf description =
   let
       rga =
-        RG.init { id = 0, maxReplicas = 1 }
+        RG.init { replicaId = 0, maxReplicas = 1 }
 
       batch = Batch
         [ Add rga.replicaId 1 [-1] data
@@ -245,7 +290,7 @@ describeAddLeaf description =
         ]
 
       result =
-        applyLocal batch rga
+        apply batch rga
   in
       describe description
         [ test "apply Add leaf succeeds"
@@ -276,11 +321,11 @@ describeAddLeaf description =
         ]
 
 
-describeBatchAtomicity description =
+testBatchAtomicity description =
   test description <| \_ ->
     let
         rga =
-          RG.init { id = 0, maxReplicas = 1 }
+          RG.init { replicaId = 0, maxReplicas = 1 }
 
         batch = Batch
           [ Add rga.replicaId 1 [0] data
@@ -288,15 +333,15 @@ describeBatchAtomicity description =
           ]
 
         result =
-          applyLocal batch rga
+          apply batch rga
     in
         Expect.err result
 
 
-describeDelete description =
+testDelete description =
   let
       rga =
-        RG.init { id = 0, maxReplicas = 1 }
+        RG.init { replicaId = 0, maxReplicas = 1 }
 
       batch = Batch
         [ Add rga.replicaId 1 [-1] data
@@ -304,7 +349,7 @@ describeDelete description =
         ]
 
       result =
-        applyLocal batch rga
+        apply batch rga
   in
       describe description
         [ test "apply Add delete succeeds"
@@ -321,10 +366,10 @@ describeDelete description =
         ]
 
 
-describeDeleteIsIdempotent description =
+testDeleteIsIdempotent description =
   let
       rga =
-        RG.init { id = 0, maxReplicas = 1 }
+        RG.init { replicaId = 0, maxReplicas = 1 }
 
       batch = Batch
         [ Add rga.replicaId 1 [-1] data
@@ -336,7 +381,7 @@ describeDeleteIsIdempotent description =
         ]
 
       result =
-        applyLocal batch rga
+        apply batch rga
   in
       describe description
 
@@ -370,10 +415,10 @@ describeDeleteIsIdempotent description =
         ]
 
 
-describeOperationsSince description =
+testOperationsSince description =
   let
       rga_ =
-        RG.init { id = 0, maxReplicas = 1 }
+        RG.init { replicaId = 0, maxReplicas = 1 }
 
       batch = Batch
         [ Add rga_.replicaId 1 [-1] data
@@ -387,8 +432,7 @@ describeOperationsSince description =
         ]
 
       rga =
-        applyLocal batch rga_
-          |> Result.withDefault rga_
+        apply batch rga_ |> Result.withDefault rga_
   in
       describe description
         [ test "operations since beginning" <| \_ ->
@@ -404,7 +448,8 @@ describeOperationsSince description =
                 , Add rga_.replicaId 6 [5] data
                 ]
           in
-              Expect.equal operations <| operationsSince -1 rga
+              Expect.equal operations
+                <| Operation.sinceTimestamp -1 rga.operations
 
         , test "operations since 2" <| \_ ->
           let
@@ -417,17 +462,20 @@ describeOperationsSince description =
                 , Add rga_.replicaId 6 [5] data
                 ]
           in
-              Expect.equal operations <| operationsSince 2 rga
+              Expect.equal operations
+                <| Operation.sinceTimestamp 2 rga.operations
 
         , test "operations since last" <| \_ ->
           let
               operations =
                 [ Add rga_.replicaId 6 [5] data ]
           in
-              Expect.equal operations <| operationsSince 6 rga
+              Expect.equal operations
+                <| Operation.sinceTimestamp 6 rga.operations
 
         , test "not present returns empty" <| \_ ->
-          Expect.equal [] <| operationsSince 10 rga
+          Expect.equal []
+            <| Operation.sinceTimestamp 10 rga.operations
         ]
 
 
