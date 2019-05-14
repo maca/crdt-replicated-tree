@@ -10,8 +10,8 @@ import List exposing (map, reverse)
 
 import RG exposing
   ( batch
-  -- , delete
-  -- , addBranch
+  , delete
+  , addBranch
   , add
   , apply
   )
@@ -31,39 +31,40 @@ data = Just Data
 
 suite : Test
 suite = describe "RG"
-  [ testAdd
-    "applies Add operation"
+  [
+    -- testAdd "adds node"
 
-  , testBatch
-    "performs several operations"
+  -- , testAddBranch
+  --   "adds branch"
 
-  , testApplyBatch
-    "applies several remote operations"
+  testAddToDeletedBranch "attempts to add to deleted branch"
 
-  , testBatchAtomicity
-    "batch fails if an operation fails"
+  -- , testBatch
+  --   "performs several operations"
 
-  , testAddIsIdempotent
-    "applying Add multiple times is the same as once"
+  -- , testApplyBatch
+  --   "applies several remote operations"
 
-  , testInsertionBetweenNodes
-    "apply Add inserts at any position"
+  -- , testBatchAtomicity
+  --   "batch fails if an operation fails"
 
-  , testAddLeaf
-    "inserts node as children of nested branch"
+  -- , testAddIsIdempotent
+  --   "applying Add multiple times is the same as once"
 
-  , testDelete
-    "Delete marks node as tombstone"
+  -- , testInsertionBetweenNodes
+  --   "apply Add inserts at any position"
 
-  , testDeleteIsIdempotent
-    "apply same Delete operation yields same results"
+  -- , testAddLeaf
+  --   "inserts node as children of nested branch"
 
-  , testOperationsSince
-    "gets operations since a timestamp"
+  -- , testDelete
+  --   "Delete marks node as tombstone"
 
-  --   -- , test "apply Delete locally sets pointer" <| \_ ->
-  -- , describe "replicas"
-  -- , describe "local operations"
+  -- , testDeleteIsIdempotent
+  --   "apply same Delete operation yields same results"
+
+  -- , testOperationsSince
+  --   "gets operations since a timestamp"
   ]
 
 testAdd description =
@@ -140,6 +141,90 @@ testBatch description =
               operation = Batch
                 [ Add rga.replicaId 1 [-1, 0] data
                 , Add rga.replicaId 2 [-1, 1] data
+                ]
+          in
+              expectLastOperation operation result
+        ]
+
+
+testAddBranch description =
+  let
+      rga =
+        RG.init { replicaId = 0, maxReplicas = 1 }
+
+      result =
+        batch [addBranch Nothing, add data] rga
+  in
+      describe description
+        [ test "apply Batch succeeds"
+          <| always (Expect.ok result)
+
+        , test "apply Batch adds branch child" <| \_ ->
+          expectNode [-1, 1, 2] (Node.init data [-1, 1, 2]) result
+
+        , test "apply Batch increments timestamp"
+          <| always (expectTimestamp 2 result)
+
+        , test "apply Batch sets rga operations" <| \_ ->
+          let
+              operations =
+                [ Add rga.replicaId 2 [-1, 1, 0] data
+                , Add rga.replicaId 1 [-1, 0] Nothing
+                , Add rga.replicaId -1 [0] Nothing
+                ]
+          in
+              expectOperations operations result
+
+        , test "sets last operation" <| \_ ->
+          let
+              operation = Batch
+                [ Add rga.replicaId 1 [-1, 0] Nothing
+                , Add rga.replicaId 2 [-1, 1, 0] data
+                ]
+          in
+              expectLastOperation operation result
+        ]
+
+
+testAddToDeletedBranch description =
+  let
+      rga =
+        RG.init { replicaId = 0, maxReplicas = 1 }
+
+      batch = Batch
+        [ Add rga.replicaId 1 [-1, 0] Nothing
+        , Delete rga.replicaId [-1, 1]
+        , Add rga.replicaId 2 [-1, 1, 0] data
+        ]
+
+      result =
+        apply batch rga
+  in
+      describe description
+        [ test "apply Batch succeeds"
+          <| always (Expect.ok result)
+
+        , test "apply Batch deletes branch" <| \_ ->
+          expectNode [-1, 1] (Node.tombstone [-1, 1]) result
+
+        , test "apply Batch increments timestamp"
+          <| always (expectTimestamp 1 result)
+
+        , test "apply Batch sets rga operations" <| \_ ->
+          let
+              operations =
+                [ Delete rga.replicaId [-1, 1]
+                , Add rga.replicaId 1 [-1, 0] Nothing
+                , Add rga.replicaId -1 [0] Nothing
+                ]
+          in
+              expectOperations operations result
+
+        , test "sets last operation" <| \_ ->
+          let
+              operation = Batch
+                [ Add rga.replicaId 1 [-1, 0] Nothing
+                , Delete rga.replicaId [-1, 1]
                 ]
           in
               expectLastOperation operation result

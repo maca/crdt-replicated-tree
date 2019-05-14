@@ -13,6 +13,7 @@ type Error
   = NotFound
   | ApplicationFailed
   | AlreadyApplied
+  | AddToTombstone
 
 
 find : (a -> Bool) -> List a -> Maybe a
@@ -43,14 +44,14 @@ replaceWhen predicate elem list =
   applyWhen predicate (always (Ok [elem])) list
 
 
-applyWhen : (a -> Bool) -> (a -> Result f (List a))
+applyWhen : (a -> Bool) -> (a -> Result Error (List a))
                         -> List a
                         -> Result Error (List a)
 applyWhen predicate fun list =
   applyWhenHelp predicate fun [] list
 
 
-applyWhenHelp : (a -> Bool) -> (a -> Result f (List a))
+applyWhenHelp : (a -> Bool) -> (a -> Result Error (List a))
                             -> List a
                             -> List a
                             -> Result Error (List a)
@@ -62,8 +63,8 @@ applyWhenHelp predicate fun acc list =
     x :: xs ->
       if predicate x then
         case fun x of
-          Err _ ->
-            Err ApplicationFailed
+          Err _ as err ->
+            err
 
           Ok ins ->
             let

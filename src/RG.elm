@@ -157,7 +157,10 @@ applyLocal operation rga =
           Err AlreadyApplied ->
             Ok { rga | lastOperation = Batch [] }
 
-          Err _ ->
+          Err AddToTombstone ->
+            Ok { rga | lastOperation = Batch [] }
+
+          Err exp ->
             Err
               { replicaId = replicaId
               , timestamp = timestamp
@@ -207,13 +210,13 @@ applyLocal operation rga =
 
 
 applyBatch funcs rga =
-  batchFold rga (Ok { rga | lastOperation = Batch [] }) funcs
+  batchFold rga funcs (Ok { rga | lastOperation = Batch [] })
 
 
-batchFold : RG a -> Result Error (RG a)
-                 -> List (RG a -> Result Error (RG a))
+batchFold : RG a -> List (RG a -> Result Error (RG a))
                  -> Result Error (RG a)
-batchFold rga result opFuns =
+                 -> Result Error (RG a)
+batchFold rga opFuns result =
   case opFuns of
     [] ->
       result
@@ -222,7 +225,7 @@ batchFold rga result opFuns =
       let
           fun = f >> Result.map2 mergeLastOperation result
       in
-          batchFold rga ((Result.andThen fun) result) fs
+          batchFold rga fs ((Result.andThen fun) result)
 
 
 addFun : Maybe a -> Path
@@ -263,7 +266,7 @@ updateBranch : UpdateFun a -> Path
 updateBranch fun path parent =
   case parent of
     Tombstone _ ->
-      Err NotFound
+      Err AddToTombstone
 
     Node ({children} as payload) ->
       let
