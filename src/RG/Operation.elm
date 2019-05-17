@@ -1,6 +1,8 @@
 module RG.Operation exposing
   ( Operation(..)
-  , sinceTimestamp
+  , since
+  , toList
+  , merge
   )
 
 import RG.Node as Node exposing (Path)
@@ -17,31 +19,44 @@ type Operation a
 
 {-| Return operations since a timestamp
 -}
-sinceTimestamp : Int -> List (Operation a) -> List (Operation a)
-sinceTimestamp ts operations =
-  sinceTimestampFold ts operations []
+since : Int -> List (Operation a) -> List (Operation a)
+since ts operations =
+  sinceFold ts operations []
 
 
-sinceTimestampFold : Int -> List (Operation a)
+sinceFold : Int -> List (Operation a)
                          -> List (Operation a)
                          -> List (Operation a)
-sinceTimestampFold timestamp operations acc =
+sinceFold timestamp operations acc =
   case operations of
     [] -> []
 
     o :: os ->
       case o of
         Batch _ ->
-          sinceTimestampFold timestamp os acc
+          sinceFold timestamp os acc
 
         Delete _ _ ->
-          sinceTimestampFold timestamp os (o :: acc)
+          sinceFold timestamp os (o :: acc)
 
         Add _ operationTimestamp _ _ ->
           if timestamp == operationTimestamp then
             o :: acc
 
           else
-            sinceTimestampFold timestamp os (o :: acc)
+            sinceFold timestamp os (o :: acc)
+
+
+toList : Operation a -> List (Operation a)
+toList operation =
+  case operation of
+    Add _ _ _ _ -> [ operation ]
+    Delete _ _ -> [ operation ]
+    Batch list -> list
+
+
+merge : Operation a -> Operation a -> Operation a
+merge a b =
+  Batch ((toList a) ++ (toList b))
 
 

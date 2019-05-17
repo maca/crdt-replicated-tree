@@ -1,5 +1,5 @@
 module RG exposing
-  ( RG(..)
+  ( RG
   , Error
   , init
   , add
@@ -7,6 +7,9 @@ module RG exposing
   , delete
   , batch
   , apply
+  , operationsSince
+  , lastOperation
+  , getNode
   )
 
 {-| `RG` is a Replicated Graph, it keeps the local replica
@@ -18,14 +21,25 @@ This sets two constraints: the `ReplicaId` has to be unique for
 each replica, and the maximum number of replicas has to be
 declared.
 
+# Init
+
 @docs RG
-@docs Error
 @docs init
+
+# Operations
+
+@docs Error
 @docs add
 @docs addBranch
 @docs delete
 @docs batch
 @docs apply
+@docs operationsSince
+@docs lastOperation
+
+# Nodes
+
+@docs getNode
 
 -}
 
@@ -41,11 +55,12 @@ import RG.List exposing
   , applyWhen
   , find
   )
-import RG.Operation exposing (Operation(..))
+import RG.Operation as Operation exposing (Operation(..))
 import RG.ReplicaId as ReplicaId exposing (ReplicaId)
 
 
-{-| Represent a Replicated Graph
+{-| Opaque type representing a Replicated Graph,
+to initialize see [int](#init).
 -}
 type RG a =
   RG
@@ -96,11 +111,11 @@ type alias NodeFun a =
 add : Maybe a -> RG a -> Result Error (RG a)
 add maybeA (RG record as graph) =
   let
-      {timestamp, replicaId, pointer} = record
+      {timestamp, replicaId} = record
 
       newTimestamp = nextTimestamp graph timestamp
   in
-      applyLocal (Add replicaId newTimestamp pointer maybeA) graph
+      applyLocal (Add replicaId newTimestamp record.pointer maybeA) graph
 
 
 {-| Build and add a branch after pointer position
@@ -291,7 +306,7 @@ mergeLastOperation (RG record1) (RG record2) =
   let
       operations1 = record1.lastOperation
       operations2 = record2.lastOperation
-      operation   = mergeOperations operations1 operations2
+      operation   = Operation.merge operations1 operations2
   in
     RG { record2 | lastOperation = operation }
 
@@ -343,6 +358,28 @@ nextTimestamp (RG record) timestamp =
   timestamp + (if record.maxReplicas < 2 then 1 else record.maxReplicas - 1)
 
 
+
+{-| Return the last successfully applied operation
+-}
+lastOperation : RG a -> Operation a
+lastOperation (RG record) =
+  record.lastOperation
+
+
+{-| Return a list of operations since a timestamp
+-}
+operationsSince : Int -> RG a -> List (Operation a)
+operationsSince timestamp (RG record) =
+  Operation.since timestamp record.operations
+
+
+{-| Find a node at a path
+-}
+getNode : Path -> RG a -> Maybe (Node a)
+getNode path (RG record) =
+  Node.descendant path record.root
+
+
 buildPath : Int -> Path -> Path
 buildPath timestamp path =
   case List.reverse path of
@@ -381,14 +418,3 @@ init {id, maxReplicas} =
         |> Result.withDefault graph
 
 
-operationToList : Operation a -> List (Operation a)
-operationToList operation =
-  case operation of
-    Add _ _ _ _ -> [ operation ]
-    Delete _ _ -> [ operation ]
-    Batch list -> list
-
-
-mergeOperations : Operation a -> Operation a -> Operation a
-mergeOperations a b =
-  Batch ((operationToList a) ++ (operationToList b))
