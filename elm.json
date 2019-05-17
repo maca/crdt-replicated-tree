@@ -8,8 +8,7 @@
     "exposed-modules": [
         "RG",
         "RG.Node",
-        "RG.Json",
-        "RG.ReplicaId"
+        "RG.Json"
     ],
     "elm-version": "0.19.0 <= v < 0.20.0",
     "dependencies": {
