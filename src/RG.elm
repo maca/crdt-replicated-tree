@@ -75,27 +75,14 @@ type RG a =
     }
 
 
-{-| Extra information about a failure when applying an
-operation
-
-`replicaId` is the id of the replica where the operation was
-generated
-
-`timestamp` is the timestamp of the attempted operation
-
-`path` is the path of the existing node, either a node intended
-to be `deleted` or the previous node for an `add` operation
-
-If an operation fails it is usefull knowing the replica where
-the operation was generated, to request the operations since the
-last know operation.
-
+{-| Failure to apply an operation.
 -}
-type alias Error =
-  { replicaId: ReplicaId
-  , timestamp: Int
-  , path: Path
-  }
+type Error =
+  Error
+    { replicaId: ReplicaId
+    , timestamp: Int
+    , path: Path
+    }
 
 
 type alias UpdateFun a =
@@ -164,11 +151,12 @@ applyLocal operation (RG record as graph) =
             Ok <| RG { record | lastOperation = Batch [] }
 
           Err exp ->
-            Err
-              { replicaId = replicaId
-              , timestamp = timestamp
-              , path = path
-              }
+            Err <|
+              Error
+                { replicaId = replicaId
+                , timestamp = timestamp
+                , path = path
+                }
 
           Ok root ->
             let
