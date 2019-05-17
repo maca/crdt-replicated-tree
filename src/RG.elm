@@ -1,5 +1,5 @@
 module RG exposing
-  ( RG
+  ( RG(..)
   , Error
   , init
   , add
@@ -41,38 +41,23 @@ import RG.List exposing
   , applyWhen
   , find
   )
-import RG.Operation exposing (Operation(..), ReplicaId(..))
+import RG.Operation exposing (Operation(..))
+import RG.ReplicaId as ReplicaId exposing (ReplicaId)
 
 
 {-| Represent a Replicated Graph
-
-`replicaId` is the local replica id
-
-`maxReplicas` maximum number of replicas
-
-`root` root node
-
-`timestamp` timestamp of the last operation
-
-`pointer` path of the last added node
-
-`operations` cache of all applied operations
-
-`replicas` known replicas and their last known timestamp
-
-`lastOperation` last succesfully applied operation or batch
-
 -}
-type alias RG a =
-  { replicaId: ReplicaId
-  , maxReplicas: Int
-  , root : Node a
-  , timestamp: Int
-  , pointer: Path
-  , operations: List (Operation a)
-  , replicas: Dict Int Int
-  , lastOperation: Operation a
-  }
+type RG a =
+  RG
+    { replicaId: ReplicaId
+    , maxReplicas: Int
+    , root : Node a
+    , timestamp: Int
+    , pointer: Path
+    , operations: List (Operation a)
+    , replicas: Dict Int Int
+    , lastOperation: Operation a
+    }
 
 
 {-| Extra information about a failure when applying an
@@ -109,11 +94,13 @@ type alias NodeFun a =
 {-| Build and add a node after pointer position
 -}
 add : Maybe a -> RG a -> Result Error (RG a)
-add maybeA ({timestamp, replicaId, pointer} as rga) =
+add maybeA (RG record as graph) =
   let
-      newTimestamp = nextTimestamp rga timestamp
+      {timestamp, replicaId, pointer} = record
+
+      newTimestamp = nextTimestamp graph timestamp
   in
-      applyLocal (Add rga.replicaId newTimestamp pointer maybeA) rga
+      applyLocal (Add replicaId newTimestamp pointer maybeA) graph
 
 
 {-| Build and add a branch after pointer position
@@ -126,8 +113,8 @@ addBranch maybeA rga =
 {-| Mark a RG node as a `Tombstone`
 -}
 delete : Path -> RG a -> Result Error (RG a)
-delete path ({replicaId} as rga) =
-  applyLocal (Delete replicaId path) rga
+delete path (RG record as graph) =
+  applyLocal (Delete record.replicaId path) graph
 
 
 {-| Apply a list of functions that edit a RG to a RG
@@ -141,24 +128,25 @@ batch funs rga =
 {-| Apply a remote operation
 -}
 apply : Operation a -> RG a -> Result Error (RG a)
-apply operation rga =
-  applyLocal operation rga
-    |> Result.map (\r -> { r | pointer = rga.pointer })
+apply operation graph =
+  applyLocal operation graph
+    |> Result.map (\(RG record) ->
+        RG { record | pointer = record.pointer })
 
 
 {-| Apply a local operation, the pointer for the `RG` will
 change
 -}
 applyLocal : Operation a -> RG a -> Result Error (RG a)
-applyLocal operation rga =
+applyLocal operation (RG record as graph) =
   let
       mapResult replicaId timestamp path result =
         case result of
           Err AlreadyApplied ->
-            Ok { rga | lastOperation = Batch [] }
+            Ok <| RG { record | lastOperation = Batch [] }
 
           Err AddToTombstone ->
-            Ok { rga | lastOperation = Batch [] }
+            Ok <| RG { record | lastOperation = Batch [] }
 
           Err exp ->
             Err
@@ -174,7 +162,7 @@ applyLocal operation rga =
                     >> appendOperation operation
                     >> updatePointer timestamp path
             in
-                Ok <| update { rga | root = root }
+                Ok <| update <| RG { record | root = root }
   in
       case operation of
         Add replica timestamp path data ->
@@ -189,7 +177,7 @@ applyLocal operation rga =
               fun =
                 addFun data nodePath
           in
-              updateBranch fun path rga.root
+              updateBranch fun path record.root
                 |> mapResult replica timestamp path
 
         Delete replica path ->
@@ -202,15 +190,15 @@ applyLocal operation rga =
               fun =
                 deleteFun path
           in
-              updateBranch fun path rga.root
+              updateBranch fun path record.root
                 |> mapResult replica timestamp path
 
         Batch ops ->
-          applyBatch (List.map apply ops) rga
+          applyBatch (List.map apply ops) graph
 
 
-applyBatch funcs rga =
-  batchFold rga funcs (Ok { rga | lastOperation = Batch [] })
+applyBatch funcs (RG record as graph) =
+  batchFold graph funcs (Ok <| RG { record | lastOperation = Batch [] })
 
 
 batchFold : RG a -> List (RG a -> Result Error (RG a))
@@ -294,41 +282,46 @@ updateBranch fun path parent =
 
 
 branchPointer : RG a -> RG a
-branchPointer rga =
-  { rga | pointer = rga.pointer ++ [0] }
+branchPointer (RG record) =
+  RG { record | pointer = record.pointer ++ [0] }
 
 
 mergeLastOperation : RG a -> RG a -> RG a
-mergeLastOperation r1 r2 =
+mergeLastOperation (RG record1) (RG record2) =
   let
-      ops1 = r1.lastOperation
-      ops2 = r2.lastOperation
-      operation = mergeOperations ops1 ops2
+      operations1 = record1.lastOperation
+      operations2 = record2.lastOperation
+      operation   = mergeOperations operations1 operations2
   in
-    { r2 | lastOperation = operation }
+    RG { record2 | lastOperation = operation }
 
 
 updatePointer : Int -> Path -> RG a -> RG a
-updatePointer timestamp path rga =
-  { rga | pointer = buildPath timestamp path }
+updatePointer timestamp path (RG record) =
+  RG { record | pointer = buildPath timestamp path }
 
 
 appendOperation : Operation a -> RG a -> RG a
-appendOperation operation rga =
-  { rga | operations = operation :: rga.operations
-  , lastOperation = operation
-  }
+appendOperation operation (RG record) =
+  RG
+    { record | operations = operation :: record.operations
+    , lastOperation = operation
+    }
 
 
 updateTimestamp : ReplicaId -> Int -> RG a -> RG a
-updateTimestamp (ReplicaId id) opTs rga =
+updateTimestamp replicaId operationTimestamp (RG record as graph) =
   let
       timestamp =
-        mergeTimestamp rga rga.timestamp opTs
+        mergeTimestamp graph record.timestamp operationTimestamp
+
+      id =
+        ReplicaId.toInt replicaId
   in
-      { rga | timestamp = timestamp
-      , replicas = Dict.insert id opTs rga.replicas
-      }
+      RG
+        { record | timestamp = timestamp
+        , replicas = Dict.insert id operationTimestamp record.replicas
+        }
 
 
 mergeTimestamp : RG a -> Int -> Int -> Int
@@ -346,8 +339,8 @@ mergeTimestamp rga timestamp operationTimestamp =
 {-| Get the next timestamp
 -}
 nextTimestamp : RG a -> Int -> Int
-nextTimestamp {maxReplicas} timestamp =
-  timestamp + (if maxReplicas < 2 then 1 else maxReplicas - 1)
+nextTimestamp (RG record) timestamp =
+  timestamp + (if record.maxReplicas < 2 then 1 else record.maxReplicas - 1)
 
 
 buildPath : Int -> Path -> Path
@@ -362,24 +355,30 @@ buildPath timestamp path =
 
 {-| Build a RG
 -}
-init : { replicaId: Int, maxReplicas: Int } -> RG a
-init {replicaId, maxReplicas} =
+init : { id: Int, maxReplicas: Int } -> RG a
+init {id, maxReplicas} =
   let
-      operation = Add (ReplicaId replicaId) -1 [0] Nothing
-      rga =
-        { replicaId = ReplicaId replicaId
-        , maxReplicas = maxReplicas
-        , operations = []
-        , pointer = []
-        , replicas = Dict.empty
-        , root = Node.root
-        , timestamp = replicaId
-        , lastOperation = Batch []
-        }
+      replicaId =
+        ReplicaId.fromInt id
+
+      operation =
+        Add replicaId -1 [0] Nothing
+
+      graph =
+        RG
+          { replicaId = replicaId
+          , maxReplicas = maxReplicas
+          , operations = []
+          , pointer = []
+          , replicas = Dict.empty
+          , root = Node.root
+          , timestamp = id
+          , lastOperation = Batch []
+          }
   in
-      applyLocal operation rga
+      applyLocal operation graph
         |> Result.map branchPointer
-        |> Result.withDefault rga
+        |> Result.withDefault graph
 
 
 operationToList : Operation a -> List (Operation a)
@@ -393,5 +392,3 @@ operationToList operation =
 mergeOperations : Operation a -> Operation a -> Operation a
 mergeOperations a b =
   Batch ((operationToList a) ++ (operationToList b))
-
-

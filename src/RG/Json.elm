@@ -22,7 +22,8 @@ import Json.Encode as Encode exposing
   , string
   , list
   )
-import RG.Operation exposing (Operation(..), ReplicaId(..))
+import RG.Operation exposing (Operation(..))
+import RG.ReplicaId as ReplicaId exposing (ReplicaId)
 
 import Dict exposing (Dict)
 
@@ -33,21 +34,21 @@ anything and returns a value
 operationEncoder : (a -> Value) -> Operation a -> Value
 operationEncoder encoder operation =
   case operation of
-    Add (ReplicaId id) ts path a ->
+    Add replicaId ts path a ->
       Encode.object
         [ ( "op", string "add" )
         , ( "path", (list int path) )
-        , ( "rid", int id )
+        , ( "rid", int <| ReplicaId.toInt replicaId )
         , ( "ts", int ts )
         , ( "a", Maybe.map encoder a
                   |> Maybe.withDefault Encode.null
           )
         ]
 
-    Delete (ReplicaId id) path ->
+    Delete replicaId path ->
       Encode.object
         [ ( "op", string "del" )
-        , ( "rid", int id )
+        , ( "rid", int <| ReplicaId.toInt replicaId )
         , ( "path", (list int path) )
         ]
 
@@ -71,14 +72,14 @@ operationDecoderHelp decoder operationType =
   case operationType of
     "add" ->
       Decode.map4 Add
-        (field "rid" (Decode.int |> Decode.map ReplicaId))
+        (field "rid" (Decode.int |> Decode.map ReplicaId.fromInt))
         (field "ts" Decode.int)
         (field "path" <| Decode.list Decode.int)
         (field "a" (oneOf [null Nothing, maybe decoder]))
 
     "del" ->
       Decode.map2 Delete
-        (field "rid" (Decode.int |> Decode.map ReplicaId))
+        (field "rid" (Decode.int |> Decode.map ReplicaId.fromInt))
         (field "path" <| Decode.list Decode.int)
 
     "batch" ->

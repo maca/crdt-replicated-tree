@@ -11,7 +11,8 @@ import Fuzz exposing (Fuzzer, int, intRange, list, string)
 import Test exposing (..)
 import List exposing (map, reverse)
 
-import RG.Operation exposing (Operation(..), ReplicaId(..))
+import RG.Operation exposing (Operation(..))
+import RG.ReplicaId as ReplicaId exposing (ReplicaId)
 
 import RG.Json exposing
   ( operationEncoder
@@ -29,7 +30,7 @@ suite = describe "encode/decode"
     [ test "Add" <| \_ ->
       let
           operation =
-            Add (ReplicaId 1) 3 [1, 2] data
+            Add (ReplicaId.fromInt 1) 3 [1, 2] data
 
           value =
             operationEncoder dataEncoder operation
@@ -41,8 +42,11 @@ suite = describe "encode/decode"
 
     , test "Delete" <| \_ ->
       let
+          replicaId =
+            ReplicaId.fromInt 1
+
           operation =
-            Delete (ReplicaId 1) [1, 2]
+            Delete replicaId [1, 2]
 
           value =
             operationEncoder dataEncoder operation
@@ -54,11 +58,14 @@ suite = describe "encode/decode"
 
     , test "Batch" <| \_ ->
       let
+          replicaId =
+            ReplicaId.fromInt 1
+
           operation =
             Batch
-              [ Add (ReplicaId 1) 3 [1, 2] data
-              , Add (ReplicaId 1) 4 [1, 3] Nothing
-              , Delete (ReplicaId 1) [1, 2]
+              [ Add replicaId 3 [1, 2] data
+              , Add replicaId 4 [1, 3] Nothing
+              , Delete replicaId [1, 2]
               ]
 
           value =

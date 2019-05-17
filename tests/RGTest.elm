@@ -9,20 +9,16 @@ import Test exposing (..)
 import List exposing (map, reverse)
 
 import RG exposing
-  ( batch
+  ( RG(..)
+  , batch
   , delete
   , addBranch
   , add
   , apply
   )
-import RG.Node as Node exposing
-  ( Node
-  , tombstone
-  )
-import RG.Operation as Operation exposing
-  ( Operation(..)
-  , ReplicaId(..)
-  )
+import RG.Node as Node exposing (Node, tombstone)
+import RG.Operation as Operation exposing (Operation(..))
+import RG.ReplicaId as ReplicaId exposing (ReplicaId)
 
 type Data = Data
 
@@ -31,49 +27,50 @@ data = Just Data
 
 suite : Test
 suite = describe "RG"
-  [
-    -- testAdd "adds node"
+  [ testAdd "adds node"
 
-  -- , testAddBranch
-  --   "adds branch"
+  , testAddBranch
+    "adds branch"
 
-  testAddToDeletedBranch "attempts to add to deleted branch"
+  , testAddToDeletedBranch "attempts to add to deleted branch"
 
-  -- , testBatch
-  --   "performs several operations"
+  , testBatch
+    "performs several operations"
 
-  -- , testApplyBatch
-  --   "applies several remote operations"
+  , testApplyBatch
+    "applies several remote operations"
 
-  -- , testBatchAtomicity
-  --   "batch fails if an operation fails"
+  , testBatchAtomicity
+    "batch fails if an operation fails"
 
-  -- , testAddIsIdempotent
-  --   "applying Add multiple times is the same as once"
+  , testAddIsIdempotent
+    "applying Add multiple times is the same as once"
 
-  -- , testInsertionBetweenNodes
-  --   "apply Add inserts at any position"
+  , testInsertionBetweenNodes
+    "apply Add inserts at any position"
 
-  -- , testAddLeaf
-  --   "inserts node as children of nested branch"
+  , testAddLeaf
+    "inserts node as children of nested branch"
 
-  -- , testDelete
-  --   "Delete marks node as tombstone"
+  , testDelete
+    "Delete marks node as tombstone"
 
-  -- , testDeleteIsIdempotent
-  --   "apply same Delete operation yields same results"
+  , testDeleteIsIdempotent
+    "apply same Delete operation yields same results"
 
-  -- , testOperationsSince
-  --   "gets operations since a timestamp"
+  , testOperationsSince
+    "gets operations since a timestamp"
   ]
 
 testAdd description =
   let
+      replicaId = ReplicaId.fromInt 0
+
       rga =
-        RG.init { replicaId = 0, maxReplicas = 1 }
+        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       operation =
-        Add rga.replicaId 1 [-1, 0] data
+        Add replicaId 1 [-1, 0] data
 
       result =
         add data rga
@@ -94,8 +91,8 @@ testAdd description =
         , test "apply Add sets rga operations" <| \_ ->
           let
               operations =
-                  [ Add rga.replicaId 1 [-1, 0] data
-                  , Add rga.replicaId -1 [0] Nothing
+                  [ Add replicaId 1 [-1, 0] data
+                  , Add replicaId -1 [0] Nothing
                   ]
           in
               expectOperations operations result
@@ -107,8 +104,10 @@ testAdd description =
 
 testBatch description =
   let
+      replicaId = ReplicaId.fromInt 0
+
       rga =
-        RG.init { replicaId = 0, maxReplicas = 1 }
+        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       result =
         batch [add data, add data] rga
@@ -129,9 +128,9 @@ testBatch description =
         , test "apply Batch sets rga operations" <| \_ ->
           let
               operations =
-                [ Add rga.replicaId 2 [-1, 1] data
-                , Add rga.replicaId 1 [-1, 0] data
-                , Add rga.replicaId -1 [0] Nothing
+                [ Add replicaId 2 [-1, 1] data
+                , Add replicaId 1 [-1, 0] data
+                , Add replicaId -1 [0] Nothing
                 ]
           in
               expectOperations operations result
@@ -139,8 +138,8 @@ testBatch description =
         , test "sets last operation" <| \_ ->
           let
               operation = Batch
-                [ Add rga.replicaId 1 [-1, 0] data
-                , Add rga.replicaId 2 [-1, 1] data
+                [ Add replicaId 1 [-1, 0] data
+                , Add replicaId 2 [-1, 1] data
                 ]
           in
               expectLastOperation operation result
@@ -149,8 +148,10 @@ testBatch description =
 
 testAddBranch description =
   let
+      replicaId = ReplicaId.fromInt 0
+
       rga =
-        RG.init { replicaId = 0, maxReplicas = 1 }
+        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       result =
         batch [addBranch Nothing, add data] rga
@@ -168,9 +169,9 @@ testAddBranch description =
         , test "apply Batch sets rga operations" <| \_ ->
           let
               operations =
-                [ Add rga.replicaId 2 [-1, 1, 0] data
-                , Add rga.replicaId 1 [-1, 0] Nothing
-                , Add rga.replicaId -1 [0] Nothing
+                [ Add replicaId 2 [-1, 1, 0] data
+                , Add replicaId 1 [-1, 0] Nothing
+                , Add replicaId -1 [0] Nothing
                 ]
           in
               expectOperations operations result
@@ -178,8 +179,8 @@ testAddBranch description =
         , test "sets last operation" <| \_ ->
           let
               operation = Batch
-                [ Add rga.replicaId 1 [-1, 0] Nothing
-                , Add rga.replicaId 2 [-1, 1, 0] data
+                [ Add replicaId 1 [-1, 0] Nothing
+                , Add replicaId 2 [-1, 1, 0] data
                 ]
           in
               expectLastOperation operation result
@@ -188,13 +189,15 @@ testAddBranch description =
 
 testAddToDeletedBranch description =
   let
+      replicaId = ReplicaId.fromInt 0
+
       rga =
-        RG.init { replicaId = 0, maxReplicas = 1 }
+        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       batch = Batch
-        [ Add rga.replicaId 1 [-1, 0] Nothing
-        , Delete rga.replicaId [-1, 1]
-        , Add rga.replicaId 2 [-1, 1, 0] data
+        [ Add replicaId 1 [-1, 0] Nothing
+        , Delete replicaId [-1, 1]
+        , Add replicaId 2 [-1, 1, 0] data
         ]
 
       result =
@@ -213,9 +216,9 @@ testAddToDeletedBranch description =
         , test "apply Batch sets rga operations" <| \_ ->
           let
               operations =
-                [ Delete rga.replicaId [-1, 1]
-                , Add rga.replicaId 1 [-1, 0] Nothing
-                , Add rga.replicaId -1 [0] Nothing
+                [ Delete replicaId [-1, 1]
+                , Add replicaId 1 [-1, 0] Nothing
+                , Add replicaId -1 [0] Nothing
                 ]
           in
               expectOperations operations result
@@ -223,8 +226,8 @@ testAddToDeletedBranch description =
         , test "sets last operation" <| \_ ->
           let
               operation = Batch
-                [ Add rga.replicaId 1 [-1, 0] Nothing
-                , Delete rga.replicaId [-1, 1]
+                [ Add replicaId 1 [-1, 0] Nothing
+                , Delete replicaId [-1, 1]
                 ]
           in
               expectLastOperation operation result
@@ -233,12 +236,14 @@ testAddToDeletedBranch description =
 
 testApplyBatch description =
   let
+      replicaId = ReplicaId.fromInt 0
+
       rga =
-        RG.init { replicaId = 0, maxReplicas = 1 }
+        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       batch = Batch
-        [ Add rga.replicaId 1 [-1] data
-        , Add rga.replicaId 2 [1] data
+        [ Add replicaId 1 [-1] data
+        , Add replicaId 2 [1] data
         ]
 
       result =
@@ -260,9 +265,9 @@ testApplyBatch description =
         , test "apply Batch sets rga operations" <| \_ ->
           let
               operations =
-                [ Add rga.replicaId 2 [1] data
-                , Add rga.replicaId 1 [-1] data
-                , Add rga.replicaId -1 [0] Nothing
+                [ Add replicaId 2 [1] data
+                , Add replicaId 1 [-1] data
+                , Add replicaId -1 [0] Nothing
                 ]
           in
               expectOperations operations result
@@ -274,14 +279,16 @@ testApplyBatch description =
 
 testAddIsIdempotent description =
   let
+      replicaId = ReplicaId.fromInt 0
+
       rga =
-        RG.init { replicaId = 0, maxReplicas = 1 }
+        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       batch = Batch
-        [ Add rga.replicaId 1 [-1] data
-        , Add rga.replicaId 1 [-1] data
-        , Add rga.replicaId 1 [-1] data
-        , Add rga.replicaId 1 [-1] data
+        [ Add replicaId 1 [-1] data
+        , Add replicaId 1 [-1] data
+        , Add replicaId 1 [-1] data
+        , Add replicaId 1 [-1] data
         ]
 
       result =
@@ -301,8 +308,8 @@ testAddIsIdempotent description =
         , test "apply Add multiple times sets rga operations" <| \_ ->
           let
               operations =
-                [ Add rga.replicaId 1 [-1] data
-                , Add rga.replicaId -1 [0] Nothing
+                [ Add replicaId 1 [-1] data
+                , Add replicaId -1 [0] Nothing
                 ]
           in
               expectOperations operations result
@@ -310,7 +317,7 @@ testAddIsIdempotent description =
         , test "sets last operation" <| \_ ->
           let
               operation = Batch
-                [ Add rga.replicaId 1 [-1] data ]
+                [ Add replicaId 1 [-1] data ]
           in
               expectLastOperation operation result
         ]
@@ -318,13 +325,15 @@ testAddIsIdempotent description =
 
 testInsertionBetweenNodes _ =
   let
+      replicaId = ReplicaId.fromInt 0
+
       rga =
-        RG.init { replicaId = 0, maxReplicas = 1 }
+        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       batch = Batch
-        [ Add rga.replicaId 1 [-1] data
-        , Add rga.replicaId 2 [1] data
-        , Add rga.replicaId 3 [1] data
+        [ Add replicaId 1 [-1] data
+        , Add replicaId 2 [1] data
+        , Add replicaId 3 [1] data
         ]
 
       result =
@@ -349,10 +358,10 @@ testInsertionBetweenNodes _ =
         , test "apply Add insert sets rga operations" <| \_ ->
           let
               operations =
-                  [ Add rga.replicaId 3 [1] data
-                  , Add rga.replicaId 2 [1] data
-                  , Add rga.replicaId 1 [-1] data
-                  , Add rga.replicaId -1 [0] Nothing
+                  [ Add replicaId 3 [1] data
+                  , Add replicaId 2 [1] data
+                  , Add replicaId 1 [-1] data
+                  , Add replicaId -1 [0] Nothing
                   ]
           in
               expectOperations operations result
@@ -364,13 +373,15 @@ testInsertionBetweenNodes _ =
 
 testAddLeaf description =
   let
+      replicaId = ReplicaId.fromInt 0
+
       rga =
-        RG.init { replicaId = 0, maxReplicas = 1 }
+        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       batch = Batch
-        [ Add rga.replicaId 1 [-1] data
-        , Add rga.replicaId 2 [1, 0] data
-        , Add rga.replicaId 3 [1, 2] data
+        [ Add replicaId 1 [-1] data
+        , Add replicaId 2 [1, 0] data
+        , Add replicaId 3 [1, 2] data
         ]
 
       result =
@@ -392,10 +403,10 @@ testAddLeaf description =
         , test "apply Add leaf sets rga operations" <| \_ ->
           let
               operations =
-                  [ Add rga.replicaId 3 [1, 2] data
-                  , Add rga.replicaId 2 [1, 0] data
-                  , Add rga.replicaId 1 [-1] data
-                  , Add rga.replicaId -1 [0] Nothing
+                  [ Add replicaId 3 [1, 2] data
+                  , Add replicaId 2 [1, 0] data
+                  , Add replicaId 1 [-1] data
+                  , Add replicaId -1 [0] Nothing
                   ]
           in
               expectOperations operations result
@@ -408,12 +419,14 @@ testAddLeaf description =
 testBatchAtomicity description =
   test description <| \_ ->
     let
+        replicaId = ReplicaId.fromInt 0
+
         rga =
-          RG.init { replicaId = 0, maxReplicas = 1 }
+          RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
         batch = Batch
-          [ Add rga.replicaId 1 [0] data
-          , Add rga.replicaId 2 [9] data
+          [ Add replicaId 1 [0] data
+          , Add replicaId 2 [9] data
           ]
 
         result =
@@ -424,12 +437,14 @@ testBatchAtomicity description =
 
 testDelete description =
   let
+      replicaId = ReplicaId.fromInt 0
+
       rga =
-        RG.init { replicaId = 0, maxReplicas = 1 }
+        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       batch = Batch
-        [ Add rga.replicaId 1 [-1] data
-        , Delete rga.replicaId [1]
+        [ Add replicaId 1 [-1] data
+        , Delete replicaId [1]
         ]
 
       result =
@@ -452,16 +467,18 @@ testDelete description =
 
 testDeleteIsIdempotent description =
   let
+      replicaId = ReplicaId.fromInt 0
+
       rga =
-        RG.init { replicaId = 0, maxReplicas = 1 }
+        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       batch = Batch
-        [ Add rga.replicaId 1 [-1] data
-        , Delete rga.replicaId [1]
-        , Delete rga.replicaId [1]
-        , Delete rga.replicaId [1]
-        , Delete rga.replicaId [1]
-        , Delete rga.replicaId [1]
+        [ Add replicaId 1 [-1] data
+        , Delete replicaId [1]
+        , Delete replicaId [1]
+        , Delete replicaId [1]
+        , Delete replicaId [1]
+        , Delete replicaId [1]
         ]
 
       result =
@@ -481,9 +498,9 @@ testDeleteIsIdempotent description =
         , test "apply Add multiple times sets rga operations" <| \_ ->
           let
               operations =
-                [ Delete rga.replicaId [1]
-                , Add rga.replicaId 1 [-1] data
-                , Add rga.replicaId -1 [0] Nothing
+                [ Delete replicaId [1]
+                , Add replicaId 1 [-1] data
+                , Add replicaId -1 [0] Nothing
                 ]
           in
               expectOperations operations result
@@ -491,8 +508,8 @@ testDeleteIsIdempotent description =
         , test "sets last operation" <| \_ ->
           let
               operation = Batch
-                [ Add rga.replicaId 1 [-1] data
-                , Delete rga.replicaId [1]
+                [ Add replicaId 1 [-1] data
+                , Delete replicaId [1]
                 ]
           in
               expectLastOperation operation result
@@ -501,91 +518,103 @@ testDeleteIsIdempotent description =
 
 testOperationsSince description =
   let
-      rga_ =
-        RG.init { replicaId = 0, maxReplicas = 1 }
+      replicaId =
+        ReplicaId.fromInt 0
+
+      rga2 =
+        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       batch = Batch
-        [ Add rga_.replicaId 1 [-1] data
-        , Add rga_.replicaId 2 [1] data
-        , Add rga_.replicaId 3 [2] data
-        , Add rga_.replicaId 4 [3] data
-        , Delete rga_.replicaId [3]
+        [ Add replicaId 1 [-1] data
+        , Add replicaId 2 [1] data
+        , Add replicaId 3 [2] data
+        , Add replicaId 4 [3] data
+        , Delete replicaId [3]
         , Batch []
-        , Add rga_.replicaId 5 [4] data
-        , Add rga_.replicaId 6 [5] data
+        , Add replicaId 5 [4] data
+        , Add replicaId 6 [5] data
         ]
 
       rga =
-        apply batch rga_ |> Result.withDefault rga_
+        apply batch rga2 |> Result.withDefault rga2
   in
       describe description
         [ test "operations since beginning" <| \_ ->
           let
               operations =
-                [ Add rga_.replicaId -1 [0] Nothing
-                , Add rga_.replicaId 1 [-1] data
-                , Add rga_.replicaId 2 [1] data
-                , Add rga_.replicaId 3 [2] data
-                , Add rga_.replicaId 4 [3] data
-                , Delete rga_.replicaId [3]
-                , Add rga_.replicaId 5 [4] data
-                , Add rga_.replicaId 6 [5] data
+                [ Add replicaId -1 [0] Nothing
+                , Add replicaId 1 [-1] data
+                , Add replicaId 2 [1] data
+                , Add replicaId 3 [2] data
+                , Add replicaId 4 [3] data
+                , Delete replicaId [3]
+                , Add replicaId 5 [4] data
+                , Add replicaId 6 [5] data
                 ]
+
+              (RG record) = rga
           in
               Expect.equal operations
-                <| Operation.sinceTimestamp -1 rga.operations
+                <| Operation.sinceTimestamp -1 record.operations
 
         , test "operations since 2" <| \_ ->
           let
               operations =
-                [ Add rga_.replicaId 2 [1] data
-                , Add rga_.replicaId 3 [2] data
-                , Add rga_.replicaId 4 [3] data
-                , Delete rga_.replicaId [3]
-                , Add rga_.replicaId 5 [4] data
-                , Add rga_.replicaId 6 [5] data
+                [ Add replicaId 2 [1] data
+                , Add replicaId 3 [2] data
+                , Add replicaId 4 [3] data
+                , Delete replicaId [3]
+                , Add replicaId 5 [4] data
+                , Add replicaId 6 [5] data
                 ]
+
+              (RG record) = rga
           in
               Expect.equal operations
-                <| Operation.sinceTimestamp 2 rga.operations
+                <| Operation.sinceTimestamp 2 record.operations
 
         , test "operations since last" <| \_ ->
           let
               operations =
-                [ Add rga_.replicaId 6 [5] data ]
+                [ Add replicaId 6 [5] data ]
+
+              (RG record) = rga
           in
               Expect.equal operations
-                <| Operation.sinceTimestamp 6 rga.operations
+                <| Operation.sinceTimestamp 6 record.operations
 
         , test "not present returns empty" <| \_ ->
-          Expect.equal []
-            <| Operation.sinceTimestamp 10 rga.operations
+          let
+              (RG record) = rga
+          in
+              Expect.equal []
+                <| Operation.sinceTimestamp 10 record.operations
         ]
 
 
 expectNode path exp result =
-  expect (\rga ->
-    Expect.equal (Just exp) (Node.descendant path rga.root)) result
+  expect (\(RG record) ->
+    Expect.equal (Just exp) (Node.descendant path record.root)) result
 
 
 expectTimestamp exp result =
-  expect (\rga ->
+  expect (\(RG record) ->
     Expect.true
-      ("expected RG `" ++ Debug.toString rga ++
+      ("expected RG `" ++ Debug.toString record ++
       "` to have timestamp " ++ Debug.toString exp)
-    (exp == rga.timestamp)) result
+    (exp == record.timestamp)) result
 
 
 expectOperations exp result =
-  expect (\rga -> Expect.equal exp rga.operations) result
+  expect (\(RG record) -> Expect.equal exp record.operations) result
 
 
 expectLastOperation exp result =
-  expect (\rga -> Expect.equal exp rga.lastOperation) result
+  expect (\(RG record) -> Expect.equal exp record.lastOperation) result
 
 
 expectPointer exp result =
-  expect (\rga -> Expect.equal exp rga.pointer) result
+  expect (\(RG record) -> Expect.equal exp record.pointer) result
 
 
 expect fun result =

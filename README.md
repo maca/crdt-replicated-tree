@@ -17,8 +17,3 @@ as other nodes can always be inserted after it.
 Because each Replicated Graph must have a unique id across the network,
 it is recommended for this id to be assigned by a coordinating
 server that keeps track of all replicas.
-
-
-```
-
-```

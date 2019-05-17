@@ -1,14 +1,10 @@
 module RG.Operation exposing
   ( Operation(..)
-  , ReplicaId(..)
   , sinceTimestamp
   )
 
 import RG.Node as Node exposing (Path)
-
-{-| The id for a replica
--}
-type ReplicaId = ReplicaId Int
+import RG.ReplicaId as ReplicaId exposing (ReplicaId)
 
 
 {-| Represents an RG operation
