@@ -93,6 +93,34 @@ type alias NodeFun a =
   Path -> Maybe Int -> Node a
 
 
+{-| Build a RG
+-}
+init : { id: Int, maxReplicas: Int } -> RG a
+init {id, maxReplicas} =
+  let
+      replicaId =
+        ReplicaId.fromInt id
+
+      operation =
+        Add replicaId -1 [0] Nothing
+
+      graph =
+        RG
+          { replicaId = replicaId
+          , maxReplicas = maxReplicas
+          , operations = []
+          , pointer = []
+          , replicas = Dict.empty
+          , root = Node.root
+          , timestamp = id
+          , lastOperation = Batch []
+          }
+  in
+      applyLocal operation graph
+        |> Result.map branchPointer
+        |> Result.withDefault graph
+
+
 {-| Build and add a node after pointer position
 -}
 add : Maybe a -> RG a -> Result Error (RG a)
@@ -346,7 +374,6 @@ nextTimestamp (RG record) timestamp =
   timestamp + (if record.maxReplicas < 2 then 1 else record.maxReplicas - 1)
 
 
-
 {-| Return the last successfully applied operation
 -}
 lastOperation : RG a -> Operation a
@@ -376,33 +403,4 @@ buildPath timestamp path =
 
     _ :: rest ->
       List.reverse <| timestamp :: rest
-
-
-{-| Build a RG
--}
-init : { id: Int, maxReplicas: Int } -> RG a
-init {id, maxReplicas} =
-  let
-      replicaId =
-        ReplicaId.fromInt id
-
-      operation =
-        Add replicaId -1 [0] Nothing
-
-      graph =
-        RG
-          { replicaId = replicaId
-          , maxReplicas = maxReplicas
-          , operations = []
-          , pointer = []
-          , replicas = Dict.empty
-          , root = Node.root
-          , timestamp = id
-          , lastOperation = Batch []
-          }
-  in
-      applyLocal operation graph
-        |> Result.map branchPointer
-        |> Result.withDefault graph
-
 
