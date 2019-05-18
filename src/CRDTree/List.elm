@@ -1,4 +1,4 @@
-module RG.List exposing
+module CRDTree.List exposing
   ( Error(..)
   , find
   , applyWhen

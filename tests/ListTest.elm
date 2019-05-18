@@ -5,12 +5,12 @@ import Result exposing (Result(..))
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer, int, intRange, list, string)
 import Test exposing (..)
-import RG.List exposing (find, insertWhen, replaceWhen)
+import CRDTree.List exposing (find, insertWhen, replaceWhen)
 
-import RG.List as NodeList
+import CRDTree.List as NodeList
 
 suite : Test
-suite = describe "RG List"
+suite = describe "CRDTree List"
   [ describe "insertWhen"
     [ test "inserts when predicate is satisfied" <| \_ ->
       let

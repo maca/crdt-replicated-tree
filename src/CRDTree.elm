@@ -1,5 +1,5 @@
-module RG exposing
-  ( RG
+module CRDTree exposing
+  ( CRDTree
   , Error
   , init
   , add
@@ -12,7 +12,7 @@ module RG exposing
   , get
   )
 
-{-| `RG` is a Replicated Graph, it keeps the local replica
+{-| `CRDTree` is a Replicated Tree, it keeps the local replica
 state.
 The timestamp for adding nodes is calculated by adding
 `maxReplicas` count to the last timestamp, and the initial
@@ -23,7 +23,7 @@ declared.
 
 # Init
 
-@docs RG
+@docs CRDTree
 @docs init
 
 # Operations
@@ -47,23 +47,23 @@ import Dict exposing (Dict, keys)
 import List exposing (head)
 import Result
 
-import RG.Node as Node exposing (Node(..))
-import RG.List exposing
+import CRDTree.Node as Node exposing (Node(..))
+import CRDTree.List exposing
   ( Error(..)
   , replaceWhen
   , insertWhen
   , applyWhen
   , find
   )
-import RG.Operation as Operation exposing (Operation(..))
-import RG.ReplicaId as ReplicaId exposing (ReplicaId)
+import CRDTree.Operation as Operation exposing (Operation(..))
+import CRDTree.ReplicaId as ReplicaId exposing (ReplicaId)
 
 
-{-| Opaque type representing a Replicated Graph,
+{-| Opaque type representing a Replicated Tree,
 to initialize see [int](#init).
 -}
-type RG a =
-  RG
+type CRDTree a =
+  CRDTree
     { replicaId: ReplicaId
     , maxReplicas: Int
     , root : Node a
@@ -86,18 +86,18 @@ type Error =
 
 
 type alias UpdateFun a =
-  Maybe Int -> List (Node a) -> Result RG.List.Error (List (Node a))
+  Maybe Int -> List (Node a) -> Result CRDTree.List.Error (List (Node a))
 
 
 type alias NodeFun a =
   List Int -> Maybe Int -> Node a
 
 
-{-| Build a RG
+{-| Build a CRDTree
 -}
-init : { id: Int, maxReplicas: Int } -> RG a
+init : { id: Int, maxReplicas: Int } -> CRDTree a
 init {id, maxReplicas} =
-  RG
+  CRDTree
     { replicaId = ReplicaId.fromInt id
     , maxReplicas = maxReplicas
     , operations = []
@@ -111,60 +111,61 @@ init {id, maxReplicas} =
 
 {-| Build and add a node after pointer position
 -}
-add : a -> RG a -> Result Error (RG a)
-add value (RG record as graph) =
+add : a -> CRDTree a -> Result Error (CRDTree a)
+add value (CRDTree record as tree) =
   let
       {timestamp, replicaId} = record
 
-      newTimestamp = nextTimestamp graph timestamp
+      newTimestamp = nextTimestamp tree timestamp
   in
-      applyLocal (Add replicaId newTimestamp record.pointer value) graph
+      applyLocal (Add replicaId newTimestamp record.pointer value) tree
 
 
 {-| Build and add a branch after pointer position
 -}
-addBranch : a -> RG a -> Result Error (RG a)
+addBranch : a -> CRDTree a -> Result Error (CRDTree a)
 addBranch value rga =
   add value rga |> Result.map branchPointer
 
 
 {-| Delete a node
 -}
-delete : List Int -> RG a -> Result Error (RG a)
-delete path (RG record as graph) =
-  applyLocal (Delete record.replicaId path) graph
+delete : List Int -> CRDTree a -> Result Error (CRDTree a)
+delete path (CRDTree record as tree) =
+  applyLocal (Delete record.replicaId path) tree
 
 
 {-| Apply a list of operations
 -}
-batch : List (RG a -> Result Error (RG a)) -> RG a
-                                           -> Result Error (RG a)
+batch : List (CRDTree a -> Result Error (CRDTree a))
+      -> CRDTree a
+      -> Result Error (CRDTree a)
 batch funs rga =
   applyBatch funs rga
 
 
 {-| Apply a remote operation
 -}
-apply : Operation a -> RG a -> Result Error (RG a)
-apply operation graph =
-  applyLocal operation graph
-    |> Result.map (\(RG record) ->
-        RG { record | pointer = record.pointer })
+apply : Operation a -> CRDTree a -> Result Error (CRDTree a)
+apply operation tree =
+  applyLocal operation tree
+    |> Result.map (\(CRDTree record) ->
+        CRDTree { record | pointer = record.pointer })
 
 
-{-| Apply a local operation, the pointer for the `RG` will
+{-| Apply a local operation, the pointer for the `CRDTree` will
 change
 -}
-applyLocal : Operation a -> RG a -> Result Error (RG a)
-applyLocal operation (RG record as graph) =
+applyLocal : Operation a -> CRDTree a -> Result Error (CRDTree a)
+applyLocal operation (CRDTree record as tree) =
   let
       mapResult replicaId timestamp path result =
         case result of
           Err AlreadyApplied ->
-            Ok <| RG { record | lastOperation = Batch [] }
+            Ok <| CRDTree { record | lastOperation = Batch [] }
 
           Err AddToTombstone ->
-            Ok <| RG { record | lastOperation = Batch [] }
+            Ok <| CRDTree { record | lastOperation = Batch [] }
 
           Err exp ->
             Err <|
@@ -181,7 +182,7 @@ applyLocal operation (RG record as graph) =
                     >> appendOperation operation
                     >> updatePointer timestamp path
             in
-                Ok <| update <| RG { record | root = root }
+                Ok <| update <| CRDTree { record | root = root }
   in
       case operation of
         Add replica timestamp path value ->
@@ -213,16 +214,16 @@ applyLocal operation (RG record as graph) =
                 |> mapResult replica timestamp path
 
         Batch ops ->
-          applyBatch (List.map apply ops) graph
+          applyBatch (List.map apply ops) tree
 
 
-applyBatch funcs (RG record as graph) =
-  batchFold graph funcs (Ok <| RG { record | lastOperation = Batch [] })
+applyBatch funcs (CRDTree record as tree) =
+  batchFold tree funcs (Ok <| CRDTree { record | lastOperation = Batch [] })
 
 
-batchFold : RG a -> List (RG a -> Result Error (RG a))
-                 -> Result Error (RG a)
-                 -> Result Error (RG a)
+batchFold : CRDTree a -> List (CRDTree a -> Result Error (CRDTree a))
+                      -> Result Error (CRDTree a)
+                      -> Result Error (CRDTree a)
 batchFold rga opFuns result =
   case opFuns of
     [] ->
@@ -238,7 +239,7 @@ batchFold rga opFuns result =
 addFun : a -> List Int
            -> Maybe Int
            -> List (Node a)
-           -> Result RG.List.Error (List (Node a))
+           -> Result CRDTree.List.Error (List (Node a))
 addFun value path maybePreviousTs nodes =
   let
       node =
@@ -263,7 +264,7 @@ addFun value path maybePreviousTs nodes =
 
 deleteFun : List Int -> Maybe Int
                      -> List (Node a)
-                     -> Result RG.List.Error (List (Node a))
+                     -> Result CRDTree.List.Error (List (Node a))
 deleteFun path maybePreviousTs nodes =
   case maybePreviousTs of
     Just previousTs ->
@@ -279,7 +280,7 @@ deleteFun path maybePreviousTs nodes =
 
 updateBranch : UpdateFun a -> List Int
                            -> Node a
-                           -> Result RG.List.Error (Node a)
+                           -> Result CRDTree.List.Error (Node a)
 updateBranch fun path parent =
   case parent of
     Tombstone _ ->
@@ -313,56 +314,56 @@ updateBranchHelp fun path parent children =
             |> updateChildren parent
 
 
-updateChildren : Node a -> Result RG.List.Error (List (Node a))
-                        -> Result RG.List.Error (Node a)
+updateChildren : Node a -> Result CRDTree.List.Error (List (Node a))
+                        -> Result CRDTree.List.Error (Node a)
 updateChildren parent result =
   Result.map (\children -> Node.updateChildren children parent) result
 
 
-branchPointer : RG a -> RG a
-branchPointer (RG record) =
-  RG { record | pointer = record.pointer ++ [0] }
+branchPointer : CRDTree a -> CRDTree a
+branchPointer (CRDTree record) =
+  CRDTree { record | pointer = record.pointer ++ [0] }
 
 
-mergeLastOperation : RG a -> RG a -> RG a
-mergeLastOperation (RG record1) (RG record2) =
+mergeLastOperation : CRDTree a -> CRDTree a -> CRDTree a
+mergeLastOperation (CRDTree record1) (CRDTree record2) =
   let
       operations1 = record1.lastOperation
       operations2 = record2.lastOperation
       operation   = Operation.merge operations1 operations2
   in
-    RG { record2 | lastOperation = operation }
+    CRDTree { record2 | lastOperation = operation }
 
 
-updatePointer : Int -> List Int -> RG a -> RG a
-updatePointer timestamp path (RG record) =
-  RG { record | pointer = buildPath timestamp path }
+updatePointer : Int -> List Int -> CRDTree a -> CRDTree a
+updatePointer timestamp path (CRDTree record) =
+  CRDTree { record | pointer = buildPath timestamp path }
 
 
-appendOperation : Operation a -> RG a -> RG a
-appendOperation operation (RG record) =
-  RG
+appendOperation : Operation a -> CRDTree a -> CRDTree a
+appendOperation operation (CRDTree record) =
+  CRDTree
     { record | operations = operation :: record.operations
     , lastOperation = operation
     }
 
 
-updateTimestamp : ReplicaId -> Int -> RG a -> RG a
-updateTimestamp replicaId operationTimestamp (RG record as graph) =
+updateTimestamp : ReplicaId -> Int -> CRDTree a -> CRDTree a
+updateTimestamp replicaId operationTimestamp (CRDTree record as tree) =
   let
       timestamp =
-        mergeTimestamp graph record.timestamp operationTimestamp
+        mergeTimestamp tree record.timestamp operationTimestamp
 
       id =
         ReplicaId.toInt replicaId
   in
-      RG
+      CRDTree
         { record | timestamp = timestamp
         , replicas = Dict.insert id operationTimestamp record.replicas
         }
 
 
-mergeTimestamp : RG a -> Int -> Int -> Int
+mergeTimestamp : CRDTree a -> Int -> Int -> Int
 mergeTimestamp rga timestamp operationTimestamp =
   if timestamp >= operationTimestamp then
     timestamp
@@ -376,22 +377,22 @@ mergeTimestamp rga timestamp operationTimestamp =
 
 {-| Get the next timestamp
 -}
-nextTimestamp : RG a -> Int -> Int
-nextTimestamp (RG record) timestamp =
+nextTimestamp : CRDTree a -> Int -> Int
+nextTimestamp (CRDTree record) timestamp =
   timestamp + (if record.maxReplicas < 2 then 1 else record.maxReplicas - 1)
 
 
 {-| Return the last successfully applied operation
 -}
-lastOperation : RG a -> Operation a
-lastOperation (RG record) =
+lastOperation : CRDTree a -> Operation a
+lastOperation (CRDTree record) =
   record.lastOperation
 
 
 {-| Return a list of operations since a timestamp
 -}
-operationsSince : Int -> RG a -> List (Operation a)
-operationsSince timestamp (RG record) =
+operationsSince : Int -> CRDTree a -> List (Operation a)
+operationsSince timestamp (CRDTree record) =
   case timestamp of
     0 ->
       record.operations |> List.reverse
@@ -402,8 +403,8 @@ operationsSince timestamp (RG record) =
 
 {-| Get a value at path
 -}
-get : List Int -> RG a -> Maybe a
-get path (RG record) =
+get : List Int -> CRDTree a -> Maybe a
+get path (CRDTree record) =
   Node.descendant path record.root |> Maybe.andThen Node.value
 
 

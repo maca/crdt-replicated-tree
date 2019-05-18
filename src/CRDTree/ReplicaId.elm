@@ -1,4 +1,4 @@
-module RG.ReplicaId exposing (ReplicaId, fromInt, toInt)
+module CRDTree.ReplicaId exposing (ReplicaId, fromInt, toInt)
 {-|
 @docs ReplicaId
 @docs toInt

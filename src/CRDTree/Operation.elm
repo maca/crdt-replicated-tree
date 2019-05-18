@@ -1,15 +1,15 @@
-module RG.Operation exposing
+module CRDTree.Operation exposing
   ( Operation(..)
   , since
   , toList
   , merge
   )
 
-import RG.Node as Node
-import RG.ReplicaId as ReplicaId exposing (ReplicaId)
+import CRDTree.Node as Node
+import CRDTree.ReplicaId as ReplicaId exposing (ReplicaId)
 
 
-{-| Represents an RG operation
+{-| Represents an CRDTree operation
 -}
 type Operation a
   = Add ReplicaId Int (List Int) a

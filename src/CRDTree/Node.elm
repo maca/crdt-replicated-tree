@@ -1,4 +1,4 @@
-module RG.Node exposing
+module CRDTree.Node exposing
   ( Node(..)
   , init
   , root
@@ -28,7 +28,7 @@ values from, and compare nodes
 
 -}
 
-import RG.List as List
+import CRDTree.List as List
 import Dict exposing (Dict)
 
 
@@ -36,12 +36,12 @@ import Dict exposing (Dict)
 data or a `Tombstone` representing a removed Node
  -}
 type Node a
-  = Node { path: List Int
+  = Root { children: List (Node a) }
+  | Node { path: List Int
          , children: List (Node a)
          , value: a
          }
   | Tombstone { path: List Int }
-  | Root { children: List (Node a) }
 
 
 {-| Build a node
@@ -86,9 +86,9 @@ tombstone p =
 children : Node a -> List (Node a)
 children n =
   case n of
+    Root record -> record.children
     Node record -> record.children
     Tombstone _ -> []
-    Root record -> record.children
 
 
 {-| Return `Just` a nodes' children if found by timestamp or `Nothing`
@@ -121,9 +121,9 @@ descendant nodePath n =
 value : Node a -> Maybe a
 value n =
   case n of
+    Root _ -> Nothing
     Node rec -> Just rec.value
     Tombstone _ -> Nothing
-    Root _ -> Nothing
 
 
 {-| Return the timestamp of a node
@@ -142,9 +142,9 @@ timestamp n =
 path : Node a -> List Int
 path n =
   case n of
+    Root _ -> [-1]
     Node rec -> rec.path
     Tombstone rec -> rec.path
-    Root _ -> [-1]
 
 
 {-| Determine wether a node has a timestamp

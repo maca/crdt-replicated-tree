@@ -1,6 +1,6 @@
-module RG.Json exposing (operationEncoder, operationDecoder)
+module CRDTree.Json exposing (operationEncoder, operationDecoder)
 
-{-| Replicated Graph JSON serialization
+{-| Replicated Tree JSON serialization
 
 @docs operationEncoder
 @docs operationDecoder
@@ -19,8 +19,8 @@ import Json.Encode as Encode exposing
   , string
   , list
   )
-import RG.Operation exposing (Operation(..))
-import RG.ReplicaId as ReplicaId exposing (ReplicaId)
+import CRDTree.Operation exposing (Operation(..))
+import CRDTree.ReplicaId as ReplicaId exposing (ReplicaId)
 
 import Dict exposing (Dict)
 

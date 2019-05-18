@@ -11,10 +11,10 @@ import Fuzz exposing (Fuzzer, int, intRange, list, string)
 import Test exposing (..)
 import List exposing (map, reverse)
 
-import RG.Operation exposing (Operation(..))
-import RG.ReplicaId as ReplicaId exposing (ReplicaId)
+import CRDTree.Operation exposing (Operation(..))
+import CRDTree.ReplicaId as ReplicaId exposing (ReplicaId)
 
-import RG.Json exposing
+import CRDTree.Json exposing
   ( operationEncoder
   , operationDecoder
   )

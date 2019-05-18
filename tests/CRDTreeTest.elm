@@ -1,4 +1,4 @@
-module RGTest exposing (..)
+module CRDTreeTest exposing (..)
 
 import Array exposing (Array)
 import Dict exposing (Dict)
@@ -8,8 +8,8 @@ import Fuzz exposing (Fuzzer, int, intRange, list, string)
 import Test exposing (..)
 import List exposing (map, reverse)
 
-import RG exposing
-  ( RG
+import CRDTree exposing
+  ( CRDTree
   , batch
   , delete
   , addBranch
@@ -19,13 +19,13 @@ import RG exposing
   , operationsSince
   , get
   )
-import RG.Node as Node exposing (Node, tombstone)
-import RG.Operation as Operation exposing (Operation(..))
-import RG.ReplicaId as ReplicaId exposing (ReplicaId)
+import CRDTree.Node as Node exposing (Node, tombstone)
+import CRDTree.Operation as Operation exposing (Operation(..))
+import CRDTree.ReplicaId as ReplicaId exposing (ReplicaId)
 
 
 suite : Test
-suite = describe "RG"
+suite = describe "CRDTree"
   [ testAdd "adds node"
 
   , testAddBranch
@@ -65,23 +65,26 @@ testAdd description =
   let
       replicaId = ReplicaId.fromInt 0
 
-      graph =
-        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
+      tree =
+        CRDTree.init
+          { id = ReplicaId.toInt replicaId
+          , maxReplicas = 1
+          }
 
       operation =
         Add replicaId 1 [0] "a"
 
       result =
-        add "a" graph
+        add "a" tree
   in
       describe description
         [ test "apply Add succeeds"
           <| always (Expect.ok result)
 
-        , test "apply Add result updates graph nodes" <| \_ ->
+        , test "apply Add result updates tree nodes" <| \_ ->
           expectNode [1] (Just "a") result
 
-        , test "apply Add sets graph operations" <| \_ ->
+        , test "apply Add sets tree operations" <| \_ ->
           let
               operations =
                   [ Add replicaId 1 [0] "a" ]
@@ -97,11 +100,14 @@ testBatch description =
   let
       replicaId = ReplicaId.fromInt 0
 
-      graph =
-        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
+      tree =
+        CRDTree.init
+          { id = ReplicaId.toInt replicaId
+          , maxReplicas = 1
+          }
 
       result =
-        batch [add "a", add "b"] graph
+        batch [add "a", add "b"] tree
   in
       describe description
         [ test "apply Batch succeeds"
@@ -113,7 +119,7 @@ testBatch description =
         , test "apply Batch adds second node" <| \_ ->
           expectNode [2] (Just "b") result
 
-        , test "apply Batch sets graph operations" <| \_ ->
+        , test "apply Batch sets tree operations" <| \_ ->
           let
               operations =
                 [ Add replicaId 1 [0] "a"
@@ -137,11 +143,14 @@ testAddBranch description =
   let
       replicaId = ReplicaId.fromInt 0
 
-      graph =
-        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
+      tree =
+        CRDTree.init
+          { id = ReplicaId.toInt replicaId
+          , maxReplicas = 1
+          }
 
       result =
-        batch [addBranch "a", add "b"] graph
+        batch [addBranch "a", add "b"] tree
   in
       describe description
         [ test "apply Batch succeeds"
@@ -150,7 +159,7 @@ testAddBranch description =
         , test "apply Batch adds branch child" <| \_ ->
           expectNode [1, 2] (Just "b") result
 
-        , test "apply Batch sets graph operations" <| \_ ->
+        , test "apply Batch sets tree operations" <| \_ ->
           let
               operations =
                 [ Add replicaId 1 [0] "a"
@@ -174,8 +183,11 @@ testAddToDeletedBranch description =
   let
       replicaId = ReplicaId.fromInt 0
 
-      graph =
-        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
+      tree =
+        CRDTree.init
+          { id = ReplicaId.toInt replicaId
+          , maxReplicas = 1
+          }
 
       batch = Batch
         [ Add replicaId 1 [0] "a"
@@ -184,7 +196,7 @@ testAddToDeletedBranch description =
         ]
 
       result =
-        apply batch graph
+        apply batch tree
   in
       describe description
         [ test "apply Batch succeeds"
@@ -193,7 +205,7 @@ testAddToDeletedBranch description =
         , test "apply Batch deletes branch" <| \_ ->
           expectNode [1] Nothing result
 
-        , test "apply Batch sets graph operations" <| \_ ->
+        , test "apply Batch sets tree operations" <| \_ ->
           let
               operations =
                 [ Add replicaId 1 [0] "a"
@@ -218,8 +230,11 @@ testApplyBatch description =
       replicaId =
         ReplicaId.fromInt 0
 
-      graph =
-        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
+      tree =
+        CRDTree.init
+          { id = ReplicaId.toInt replicaId
+          , maxReplicas = 1
+          }
 
       batch = Batch
         [ Add replicaId 1 [0] "a"
@@ -229,7 +244,7 @@ testApplyBatch description =
       -- TODO: test concurrency by adding before and after batch
 
       result =
-        apply batch graph
+        apply batch tree
   in
       describe description
         [ test "apply Batch succeeds"
@@ -241,7 +256,7 @@ testApplyBatch description =
         , test "apply Batch adds second node" <| \_ ->
           expectNode [2] (Just "b") result
 
-        , test "apply Batch sets graph operations" <| \_ ->
+        , test "apply Batch sets tree operations" <| \_ ->
           let
               operations =
                 [ Add replicaId 1 [0] "a"
@@ -259,8 +274,11 @@ testAddIsIdempotent description =
   let
       replicaId = ReplicaId.fromInt 0
 
-      graph =
-        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
+      tree =
+        CRDTree.init
+          { id = ReplicaId.toInt replicaId
+          , maxReplicas = 1
+          }
 
       batch = Batch
         [ Add replicaId 1 [0] "a"
@@ -270,17 +288,17 @@ testAddIsIdempotent description =
         ]
 
       result =
-        apply batch graph
+        apply batch tree
   in
       describe description
 
         [ test "apply Add multiple times succeeds"
           <| always (Expect.ok result)
 
-        , test "apply Add multiple times result updates graph nodes" <| \_ ->
+        , test "apply Add multiple times result updates tree nodes" <| \_ ->
           expectNode [1] (Just "a") result
 
-        , test "apply Add multiple times sets graph operations" <| \_ ->
+        , test "apply Add multiple times sets tree operations" <| \_ ->
           let
               operations =
                 [ Add replicaId 1 [0] "a" ]
@@ -300,8 +318,11 @@ testInsertionBetweenNodes _ =
   let
       replicaId = ReplicaId.fromInt 0
 
-      graph =
-        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
+      tree =
+        CRDTree.init
+          { id = ReplicaId.toInt replicaId
+          , maxReplicas = 1
+          }
 
       batch = Batch
         [ Add replicaId 1 [0] "a"
@@ -310,7 +331,7 @@ testInsertionBetweenNodes _ =
         ]
 
       result =
-        apply batch graph
+        apply batch tree
   in
       describe "apply Add inserts between nodes"
         [ test "apply Add insert succeeds"
@@ -325,7 +346,7 @@ testInsertionBetweenNodes _ =
         , test "apply Add insert adds third node" <| \_ ->
           expectNode [3] (Just "b") result
 
-        , test "apply Add insert sets graph operations" <| \_ ->
+        , test "apply Add insert sets tree operations" <| \_ ->
           let
               operations =
                   [ Add replicaId 1 [0] "a"
@@ -344,8 +365,11 @@ testAddLeaf description =
   let
       replicaId = ReplicaId.fromInt 0
 
-      graph =
-        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
+      tree =
+        CRDTree.init
+          { id = ReplicaId.toInt replicaId
+          , maxReplicas = 1
+          }
 
       batch = Batch
         [ Add replicaId 1 [0] "a"
@@ -354,7 +378,7 @@ testAddLeaf description =
         ]
 
       result =
-        apply batch graph
+        apply batch tree
   in
       describe description
         [ test "apply Add leaf succeeds"
@@ -366,7 +390,7 @@ testAddLeaf description =
         , test "apply Add leaf adds second leaf" <| \_ ->
           expectNode [1, 3] (Just "c") result
 
-        , test "apply Add leaf sets graph operations" <| \_ ->
+        , test "apply Add leaf sets tree operations" <| \_ ->
           let
               operations =
                   [ Add replicaId 1 [0] "a"
@@ -386,8 +410,11 @@ testBatchAtomicity description =
     let
         replicaId = ReplicaId.fromInt 0
 
-        graph =
-          RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
+        tree =
+          CRDTree.init
+            { id = ReplicaId.toInt replicaId
+            , maxReplicas = 1
+            }
 
         batch = Batch
           [ Add replicaId 1 [0] "a"
@@ -395,7 +422,7 @@ testBatchAtomicity description =
           ]
 
         result =
-          apply batch graph
+          apply batch tree
     in
         Expect.err result
 
@@ -404,8 +431,11 @@ testDelete description =
   let
       replicaId = ReplicaId.fromInt 0
 
-      graph =
-        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
+      tree =
+        CRDTree.init
+          { id = ReplicaId.toInt replicaId
+          , maxReplicas = 1
+          }
 
       batch = Batch
         [ Add replicaId 1 [0] "a"
@@ -413,13 +443,13 @@ testDelete description =
         ]
 
       result =
-        apply batch graph
+        apply batch tree
   in
       describe description
         [ test "apply Add delete succeeds"
           <| always (Expect.ok result)
 
-        , test "apply Delete result updates graph nodes" <| \_ ->
+        , test "apply Delete result updates tree nodes" <| \_ ->
           expectNode [1] (Nothing) result
 
         , test "sets last operation"
@@ -431,8 +461,11 @@ testDeleteIsIdempotent description =
   let
       replicaId = ReplicaId.fromInt 0
 
-      graph =
-        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
+      tree =
+        CRDTree.init
+          { id = ReplicaId.toInt replicaId
+          , maxReplicas = 1
+          }
 
       batch = Batch
         [ Add replicaId 1 [0] "a"
@@ -444,17 +477,17 @@ testDeleteIsIdempotent description =
         ]
 
       result =
-        apply batch graph
+        apply batch tree
   in
       describe description
 
         [ test "apply Add multiple times succeeds"
           <| always (Expect.ok result)
 
-        , test "apply Add multiple times result updates graph nodes" <| \_ ->
+        , test "apply Add multiple times result updates tree nodes" <| \_ ->
           expectNode [1] Nothing result
 
-        , test "apply Add multiple times sets graph operations" <| \_ ->
+        , test "apply Add multiple times sets tree operations" <| \_ ->
           let
               operations =
                 [ Add replicaId 1 [0] "a"
@@ -479,8 +512,11 @@ testOperationsSince description =
       replicaId =
         ReplicaId.fromInt 0
 
-      graph2 =
-        RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
+      tree2 =
+        CRDTree.init
+          { id = ReplicaId.toInt replicaId
+          , maxReplicas = 1
+          }
 
       batch = Batch
         [ Add replicaId 1 [0] "a"
@@ -493,8 +529,8 @@ testOperationsSince description =
         , Add replicaId 6 [5] "f"
         ]
 
-      graph =
-        apply batch graph2 |> Result.withDefault graph2
+      tree =
+        apply batch tree2 |> Result.withDefault tree2
   in
       describe description
         [ test "operations since beginning" <| \_ ->
@@ -510,7 +546,7 @@ testOperationsSince description =
                 ]
           in
               Expect.equal operations
-                <| operationsSince 0 graph
+                <| operationsSince 0 tree
 
         , test "operations since 2" <| \_ ->
           let
@@ -524,7 +560,7 @@ testOperationsSince description =
                 ]
           in
               Expect.equal operations
-                <| operationsSince 2 graph
+                <| operationsSince 2 tree
 
         , test "operations since last" <| \_ ->
           let
@@ -532,24 +568,24 @@ testOperationsSince description =
                 [ Add replicaId 6 [5] "f" ]
           in
               Expect.equal operations
-                <| operationsSince 6 graph
+                <| operationsSince 6 tree
 
         , test "not present returns empty" <| \_ ->
-          Expect.equal [] <| operationsSince 10 graph
+          Expect.equal [] <| operationsSince 10 tree
         ]
 
 
 expectNode path exp result =
-  expect (\graph ->
-    Expect.equal exp (get path graph)) result
+  expect (\tree ->
+    Expect.equal exp (get path tree)) result
 
 
 expectOperations exp result =
-  expect (\graph -> Expect.equal exp (operationsSince 0 graph)) result
+  expect (\tree -> Expect.equal exp (operationsSince 0 tree)) result
 
 
 expectLastOperation exp result =
-  expect (\graph -> Expect.equal exp (lastOperation graph)) result
+  expect (\tree -> Expect.equal exp (lastOperation tree)) result
 
 
 expect fun result =
