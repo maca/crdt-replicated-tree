@@ -47,7 +47,7 @@ import Dict exposing (Dict, keys)
 import List exposing (head)
 import Result
 
-import RG.Node as Node exposing (Node(..), Path)
+import RG.Node as Node exposing (Node(..))
 import RG.List exposing
   ( Error(..)
   , replaceWhen
@@ -68,7 +68,7 @@ type RG a =
     , maxReplicas: Int
     , root : Node a
     , timestamp: Int
-    , pointer: Path
+    , pointer: List Int
     , operations: List (Operation a)
     , replicas: Dict Int Int
     , lastOperation: Operation a
@@ -81,7 +81,7 @@ type Error =
   Error
     { replicaId: ReplicaId
     , timestamp: Int
-    , path: Path
+    , path: List Int
     }
 
 
@@ -90,7 +90,7 @@ type alias UpdateFun a =
 
 
 type alias NodeFun a =
-  Path -> Maybe Int -> Node a
+  List Int -> Maybe Int -> Node a
 
 
 {-| Build a RG
@@ -130,7 +130,7 @@ addBranch value rga =
 
 {-| Delete a node
 -}
-delete : Path -> RG a -> Result Error (RG a)
+delete : List Int -> RG a -> Result Error (RG a)
 delete path (RG record as graph) =
   applyLocal (Delete record.replicaId path) graph
 
@@ -235,7 +235,7 @@ batchFold rga opFuns result =
           batchFold rga fs ((Result.andThen fun) result)
 
 
-addFun : a -> Path
+addFun : a -> List Int
            -> Maybe Int
            -> List (Node a)
            -> Result RG.List.Error (List (Node a))
@@ -261,9 +261,9 @@ addFun value path maybePreviousTs nodes =
               Ok [ node ]
 
 
-deleteFun : Path -> Maybe Int
-                 -> List (Node a)
-                 -> Result RG.List.Error (List (Node a))
+deleteFun : List Int -> Maybe Int
+                     -> List (Node a)
+                     -> Result RG.List.Error (List (Node a))
 deleteFun path maybePreviousTs nodes =
   case maybePreviousTs of
     Just previousTs ->
@@ -277,7 +277,7 @@ deleteFun path maybePreviousTs nodes =
       Err NotFound
 
 
-updateBranch : UpdateFun a -> Path
+updateBranch : UpdateFun a -> List Int
                            -> Node a
                            -> Result RG.List.Error (Node a)
 updateBranch fun path parent =
@@ -334,7 +334,7 @@ mergeLastOperation (RG record1) (RG record2) =
     RG { record2 | lastOperation = operation }
 
 
-updatePointer : Int -> Path -> RG a -> RG a
+updatePointer : Int -> List Int -> RG a -> RG a
 updatePointer timestamp path (RG record) =
   RG { record | pointer = buildPath timestamp path }
 
@@ -402,12 +402,12 @@ operationsSince timestamp (RG record) =
 
 {-| Get a value at path
 -}
-get : Path -> RG a -> Maybe a
+get : List Int -> RG a -> Maybe a
 get path (RG record) =
   Node.descendant path record.root |> Maybe.andThen Node.value
 
 
-buildPath : Int -> Path -> Path
+buildPath : Int -> List Int -> List Int
 buildPath timestamp path =
   case List.reverse path of
     [] ->

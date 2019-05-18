@@ -1,6 +1,5 @@
 module RG.Node exposing
   ( Node(..)
-  , Path
   , init
   , root
   , tombstone
@@ -17,7 +16,6 @@ module RG.Node exposing
 values from, and compare nodes
 
 @docs Node
-@docs Path
 @docs init
 @docs root
 @docs tombstone
@@ -33,21 +31,16 @@ values from, and compare nodes
 import RG.List as List
 import Dict exposing (Dict)
 
-{-| The path of the node is represented as a list of integers
--}
-type alias Path =
-  List Int
-
 
 {-| Node can be either a branch or leaf `Node` with optional
 data or a `Tombstone` representing a removed Node
  -}
 type Node a
-  = Node { path: Path
+  = Node { path: List Int
          , children: List (Node a)
          , value: a
          }
-  | Tombstone { path: Path }
+  | Tombstone { path: List Int }
   | Root { children: List (Node a) }
 
 
@@ -57,7 +50,7 @@ type Node a
     path (node (Just 'a') [0, 1]) == [0, 1]
     value (node (Just 'a') [0, 1]) == Just 'a'
  -}
-init : a -> Path -> Node a
+init : a -> List Int -> Node a
 init val p =
   Node
     { value = val
@@ -83,7 +76,7 @@ root =
     path (tombstone [0, 1]) == [0, 1]
     value (tombstone [0, 1]) == Nothing
 -}
-tombstone : Path -> Node a
+tombstone : List Int -> Node a
 tombstone p =
   Tombstone { path = p }
 
@@ -107,7 +100,7 @@ child ts n =
 
 {-| Return `Just` a nodes' descendant if found by path or `Nothing`
 -}
-descendant : Path -> Node a -> Maybe (Node a)
+descendant : List Int -> Node a -> Maybe (Node a)
 descendant nodePath n =
   case nodePath of
     [] ->
@@ -146,7 +139,7 @@ timestamp n =
 
     path (node (Just 'a') [0, 1]) == [0, 1]
 -}
-path : Node a -> Path
+path : Node a -> List Int
 path n =
   case n of
     Node rec -> rec.path

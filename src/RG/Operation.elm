@@ -5,15 +5,15 @@ module RG.Operation exposing
   , merge
   )
 
-import RG.Node as Node exposing (Path)
+import RG.Node as Node
 import RG.ReplicaId as ReplicaId exposing (ReplicaId)
 
 
 {-| Represents an RG operation
 -}
 type Operation a
-  = Add ReplicaId Int Path a
-  | Delete ReplicaId Path
+  = Add ReplicaId Int (List Int) a
+  | Delete ReplicaId (List Int)
   | Batch (List (Operation a))
 
 
@@ -25,8 +25,8 @@ since ts operations =
 
 
 sinceFold : Int -> List (Operation a)
-                         -> List (Operation a)
-                         -> List (Operation a)
+                -> List (Operation a)
+                -> List (Operation a)
 sinceFold timestamp operations acc =
   case operations of
     [] -> []
