@@ -9,7 +9,7 @@ import Test exposing (..)
 import List exposing (map, reverse)
 
 import RG exposing
-  ( RG(..)
+  ( RG
   , batch
   , delete
   , addBranch
@@ -17,15 +17,11 @@ import RG exposing
   , apply
   , lastOperation
   , operationsSince
-  , getNode
+  , get
   )
 import RG.Node as Node exposing (Node, tombstone)
 import RG.Operation as Operation exposing (Operation(..))
 import RG.ReplicaId as ReplicaId exposing (ReplicaId)
-
-type Data = Data
-
-data = Just Data
 
 
 suite : Test
@@ -73,24 +69,22 @@ testAdd description =
         RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       operation =
-        Add replicaId 1 [-1, 0] data
+        Add replicaId 1 [0] "a"
 
       result =
-        add data graph
+        add "a" graph
   in
       describe description
         [ test "apply Add succeeds"
           <| always (Expect.ok result)
 
         , test "apply Add result updates graph nodes" <| \_ ->
-          expectNode [-1, 1] (Node.init data [-1, 1]) result
+          expectNode [1] (Just "a") result
 
         , test "apply Add sets graph operations" <| \_ ->
           let
               operations =
-                  [ Add replicaId -1 [0] Nothing
-                  , Add replicaId 1 [-1, 0] data
-                  ]
+                  [ Add replicaId 1 [0] "a" ]
           in
               expectOperations operations result
 
@@ -107,24 +101,23 @@ testBatch description =
         RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       result =
-        batch [add data, add data] graph
+        batch [add "a", add "b"] graph
   in
       describe description
         [ test "apply Batch succeeds"
           <| always (Expect.ok result)
 
         , test "apply Batch adds first node" <| \_ ->
-          expectNode [-1, 1] (Node.init data [-1, 1]) result
+          expectNode [1] (Just "a") result
 
         , test "apply Batch adds second node" <| \_ ->
-          expectNode [-1, 2] (Node.init data [-1, 2]) result
+          expectNode [2] (Just "b") result
 
         , test "apply Batch sets graph operations" <| \_ ->
           let
               operations =
-                [ Add replicaId -1 [0] Nothing
-                , Add replicaId 1 [-1, 0] data
-                , Add replicaId 2 [-1, 1] data
+                [ Add replicaId 1 [0] "a"
+                , Add replicaId 2 [1] "b"
                 ]
           in
               expectOperations operations result
@@ -132,8 +125,8 @@ testBatch description =
         , test "sets last operation" <| \_ ->
           let
               operation = Batch
-                [ Add replicaId 1 [-1, 0] data
-                , Add replicaId 2 [-1, 1] data
+                [ Add replicaId 1 [0] "a"
+                , Add replicaId 2 [1] "b"
                 ]
           in
               expectLastOperation operation result
@@ -148,21 +141,20 @@ testAddBranch description =
         RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       result =
-        batch [addBranch Nothing, add data] graph
+        batch [addBranch "a", add "b"] graph
   in
       describe description
         [ test "apply Batch succeeds"
           <| always (Expect.ok result)
 
         , test "apply Batch adds branch child" <| \_ ->
-          expectNode [-1, 1, 2] (Node.init data [-1, 1, 2]) result
+          expectNode [1, 2] (Just "b") result
 
         , test "apply Batch sets graph operations" <| \_ ->
           let
               operations =
-                [ Add replicaId -1 [0] Nothing
-                , Add replicaId 1 [-1, 0] Nothing
-                , Add replicaId 2 [-1, 1, 0] data
+                [ Add replicaId 1 [0] "a"
+                , Add replicaId 2 [1, 0] "b"
                 ]
           in
               expectOperations operations result
@@ -170,8 +162,8 @@ testAddBranch description =
         , test "sets last operation" <| \_ ->
           let
               operation = Batch
-                [ Add replicaId 1 [-1, 0] Nothing
-                , Add replicaId 2 [-1, 1, 0] data
+                [ Add replicaId 1 [0] "a"
+                , Add replicaId 2 [1, 0] "b"
                 ]
           in
               expectLastOperation operation result
@@ -186,9 +178,9 @@ testAddToDeletedBranch description =
         RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       batch = Batch
-        [ Add replicaId 1 [-1, 0] Nothing
-        , Delete replicaId [-1, 1]
-        , Add replicaId 2 [-1, 1, 0] data
+        [ Add replicaId 1 [0] "a"
+        , Delete replicaId [1]
+        , Add replicaId 2 [1, 0] "b"
         ]
 
       result =
@@ -199,14 +191,13 @@ testAddToDeletedBranch description =
           <| always (Expect.ok result)
 
         , test "apply Batch deletes branch" <| \_ ->
-          expectNode [-1, 1] (Node.tombstone [-1, 1]) result
+          expectNode [1] Nothing result
 
         , test "apply Batch sets graph operations" <| \_ ->
           let
               operations =
-                [ Add replicaId -1 [0] Nothing
-                , Add replicaId 1 [-1, 0] Nothing
-                , Delete replicaId [-1, 1]
+                [ Add replicaId 1 [0] "a"
+                , Delete replicaId [1]
                 ]
           in
               expectOperations operations result
@@ -214,8 +205,8 @@ testAddToDeletedBranch description =
         , test "sets last operation" <| \_ ->
           let
               operation = Batch
-                [ Add replicaId 1 [-1, 0] Nothing
-                , Delete replicaId [-1, 1]
+                [ Add replicaId 1 [0] "a"
+                , Delete replicaId [1]
                 ]
           in
               expectLastOperation operation result
@@ -224,14 +215,15 @@ testAddToDeletedBranch description =
 
 testApplyBatch description =
   let
-      replicaId = ReplicaId.fromInt 0
+      replicaId =
+        ReplicaId.fromInt 0
 
       graph =
         RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       batch = Batch
-        [ Add replicaId 1 [-1] data
-        , Add replicaId 2 [1] data
+        [ Add replicaId 1 [0] "a"
+        , Add replicaId 2 [1] "b"
         ]
 
       -- TODO: test concurrency by adding before and after batch
@@ -244,17 +236,16 @@ testApplyBatch description =
           <| always (Expect.ok result)
 
         , test "apply Batch adds first node" <| \_ ->
-          expectNode [1] (Node.init data [1]) result
+          expectNode [1] (Just "a") result
 
         , test "apply Batch adds second node" <| \_ ->
-          expectNode [2] (Node.init data [2]) result
+          expectNode [2] (Just "b") result
 
         , test "apply Batch sets graph operations" <| \_ ->
           let
               operations =
-                [ Add replicaId -1 [0] Nothing
-                , Add replicaId 1 [-1] data
-                , Add replicaId 2 [1] data
+                [ Add replicaId 1 [0] "a"
+                , Add replicaId 2 [1] "b"
                 ]
           in
               expectOperations operations result
@@ -272,10 +263,10 @@ testAddIsIdempotent description =
         RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       batch = Batch
-        [ Add replicaId 1 [-1] data
-        , Add replicaId 1 [-1] data
-        , Add replicaId 1 [-1] data
-        , Add replicaId 1 [-1] data
+        [ Add replicaId 1 [0] "a"
+        , Add replicaId 1 [0] "a"
+        , Add replicaId 1 [0] "a"
+        , Add replicaId 1 [0] "a"
         ]
 
       result =
@@ -287,21 +278,19 @@ testAddIsIdempotent description =
           <| always (Expect.ok result)
 
         , test "apply Add multiple times result updates graph nodes" <| \_ ->
-          expectNode [1] (Node.init data [1]) result
+          expectNode [1] (Just "a") result
 
         , test "apply Add multiple times sets graph operations" <| \_ ->
           let
               operations =
-                [ Add replicaId -1 [0] Nothing
-                , Add replicaId 1 [-1] data
-                ]
+                [ Add replicaId 1 [0] "a" ]
           in
               expectOperations operations result
 
         , test "sets last operation" <| \_ ->
           let
               operation = Batch
-                [ Add replicaId 1 [-1] data ]
+                [ Add replicaId 1 [0] "a" ]
           in
               expectLastOperation operation result
         ]
@@ -315,9 +304,9 @@ testInsertionBetweenNodes _ =
         RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       batch = Batch
-        [ Add replicaId 1 [-1] data
-        , Add replicaId 2 [1] data
-        , Add replicaId 3 [1] data
+        [ Add replicaId 1 [0] "a"
+        , Add replicaId 2 [1] "c"
+        , Add replicaId 3 [1] "b"
         ]
 
       result =
@@ -328,21 +317,20 @@ testInsertionBetweenNodes _ =
           <| always (Expect.ok result)
 
         , test "apply Add insert adds first node" <| \_ ->
-          expectNode [1] (Node.init data [1]) result
+          expectNode [1] (Just "a") result
 
         , test "apply Add insert adds second node" <| \_ ->
-          expectNode [2] (Node.init data [2]) result
+          expectNode [2] (Just "c") result
 
         , test "apply Add insert adds third node" <| \_ ->
-          expectNode [3] (Node.init data [3]) result
+          expectNode [3] (Just "b") result
 
         , test "apply Add insert sets graph operations" <| \_ ->
           let
               operations =
-                  [ Add replicaId -1 [0] Nothing
-                  , Add replicaId 1 [-1] data
-                  , Add replicaId 2 [1] data
-                  , Add replicaId 3 [1] data
+                  [ Add replicaId 1 [0] "a"
+                  , Add replicaId 2 [1] "c"
+                  , Add replicaId 3 [1] "b"
                   ]
           in
               expectOperations operations result
@@ -360,9 +348,9 @@ testAddLeaf description =
         RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       batch = Batch
-        [ Add replicaId 1 [-1] data
-        , Add replicaId 2 [1, 0] data
-        , Add replicaId 3 [1, 2] data
+        [ Add replicaId 1 [0] "a"
+        , Add replicaId 2 [1, 0] "b"
+        , Add replicaId 3 [1, 2] "c"
         ]
 
       result =
@@ -373,18 +361,17 @@ testAddLeaf description =
           <| always (Expect.ok result)
 
         , test "apply Add leaf adds first leaf" <| \_ ->
-          expectNode [1, 2] (Node.init data [1, 2]) result
+          expectNode [1, 2] (Just "b") result
 
         , test "apply Add leaf adds second leaf" <| \_ ->
-          expectNode [1, 3] (Node.init data [1, 3]) result
+          expectNode [1, 3] (Just "c") result
 
         , test "apply Add leaf sets graph operations" <| \_ ->
           let
               operations =
-                  [ Add replicaId -1 [0] Nothing
-                  , Add replicaId 1 [-1] data
-                  , Add replicaId 2 [1, 0] data
-                  , Add replicaId 3 [1, 2] data
+                  [ Add replicaId 1 [0] "a"
+                  , Add replicaId 2 [1, 0] "b"
+                  , Add replicaId 3 [1, 2] "c"
                   ]
           in
               expectOperations operations result
@@ -403,8 +390,8 @@ testBatchAtomicity description =
           RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
         batch = Batch
-          [ Add replicaId 1 [0] data
-          , Add replicaId 2 [9] data
+          [ Add replicaId 1 [0] "a"
+          , Add replicaId 2 [9] "b"
           ]
 
         result =
@@ -421,7 +408,7 @@ testDelete description =
         RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       batch = Batch
-        [ Add replicaId 1 [-1] data
+        [ Add replicaId 1 [0] "a"
         , Delete replicaId [1]
         ]
 
@@ -433,7 +420,7 @@ testDelete description =
           <| always (Expect.ok result)
 
         , test "apply Delete result updates graph nodes" <| \_ ->
-          expectNode [1] (tombstone [1]) result
+          expectNode [1] (Nothing) result
 
         , test "sets last operation"
           <| always (expectLastOperation batch result)
@@ -448,7 +435,7 @@ testDeleteIsIdempotent description =
         RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       batch = Batch
-        [ Add replicaId 1 [-1] data
+        [ Add replicaId 1 [0] "a"
         , Delete replicaId [1]
         , Delete replicaId [1]
         , Delete replicaId [1]
@@ -465,13 +452,12 @@ testDeleteIsIdempotent description =
           <| always (Expect.ok result)
 
         , test "apply Add multiple times result updates graph nodes" <| \_ ->
-          expectNode [1] (tombstone [1]) result
+          expectNode [1] Nothing result
 
         , test "apply Add multiple times sets graph operations" <| \_ ->
           let
               operations =
-                [ Add replicaId -1 [0] Nothing
-                , Add replicaId 1 [-1] data
+                [ Add replicaId 1 [0] "a"
                 , Delete replicaId [1]
                 ]
           in
@@ -480,7 +466,7 @@ testDeleteIsIdempotent description =
         , test "sets last operation" <| \_ ->
           let
               operation = Batch
-                [ Add replicaId 1 [-1] data
+                [ Add replicaId 1 [0] "a"
                 , Delete replicaId [1]
                 ]
           in
@@ -497,14 +483,14 @@ testOperationsSince description =
         RG.init { id = ReplicaId.toInt replicaId, maxReplicas = 1 }
 
       batch = Batch
-        [ Add replicaId 1 [-1] data
-        , Add replicaId 2 [1] data
-        , Add replicaId 3 [2] data
-        , Add replicaId 4 [3] data
+        [ Add replicaId 1 [0] "a"
+        , Add replicaId 2 [1] "b"
+        , Add replicaId 3 [2] "c"
+        , Add replicaId 4 [3] "d"
         , Delete replicaId [3]
         , Batch []
-        , Add replicaId 5 [4] data
-        , Add replicaId 6 [5] data
+        , Add replicaId 5 [4] "e"
+        , Add replicaId 6 [5] "f"
         ]
 
       graph =
@@ -514,28 +500,27 @@ testOperationsSince description =
         [ test "operations since beginning" <| \_ ->
           let
               operations =
-                [ Add replicaId -1 [0] Nothing
-                , Add replicaId 1 [-1] data
-                , Add replicaId 2 [1] data
-                , Add replicaId 3 [2] data
-                , Add replicaId 4 [3] data
+                [ Add replicaId 1 [0] "a"
+                , Add replicaId 2 [1] "b"
+                , Add replicaId 3 [2] "c"
+                , Add replicaId 4 [3] "d"
                 , Delete replicaId [3]
-                , Add replicaId 5 [4] data
-                , Add replicaId 6 [5] data
+                , Add replicaId 5 [4] "e"
+                , Add replicaId 6 [5] "f"
                 ]
           in
               Expect.equal operations
-                <| operationsSince -1 graph
+                <| operationsSince 0 graph
 
         , test "operations since 2" <| \_ ->
           let
               operations =
-                [ Add replicaId 2 [1] data
-                , Add replicaId 3 [2] data
-                , Add replicaId 4 [3] data
+                [ Add replicaId 2 [1] "b"
+                , Add replicaId 3 [2] "c"
+                , Add replicaId 4 [3] "d"
                 , Delete replicaId [3]
-                , Add replicaId 5 [4] data
-                , Add replicaId 6 [5] data
+                , Add replicaId 5 [4] "e"
+                , Add replicaId 6 [5] "f"
                 ]
           in
               Expect.equal operations
@@ -544,7 +529,7 @@ testOperationsSince description =
         , test "operations since last" <| \_ ->
           let
               operations =
-                [ Add replicaId 6 [5] data ]
+                [ Add replicaId 6 [5] "f" ]
           in
               Expect.equal operations
                 <| operationsSince 6 graph
@@ -556,11 +541,11 @@ testOperationsSince description =
 
 expectNode path exp result =
   expect (\graph ->
-    Expect.equal (Just exp) (getNode path graph)) result
+    Expect.equal exp (get path graph)) result
 
 
 expectOperations exp result =
-  expect (\graph -> Expect.equal exp (operationsSince -1 graph)) result
+  expect (\graph -> Expect.equal exp (operationsSince 0 graph)) result
 
 
 expectLastOperation exp result =

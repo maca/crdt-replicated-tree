@@ -9,7 +9,7 @@ module RG exposing
   , apply
   , operationsSince
   , lastOperation
-  , getNode
+  , get
   )
 
 {-| `RG` is a Replicated Graph, it keeps the local replica
@@ -39,7 +39,7 @@ declared.
 
 # Nodes
 
-@docs getNode
+@docs get
 
 -}
 
@@ -97,57 +97,45 @@ type alias NodeFun a =
 -}
 init : { id: Int, maxReplicas: Int } -> RG a
 init {id, maxReplicas} =
-  let
-      replicaId =
-        ReplicaId.fromInt id
-
-      operation =
-        Add replicaId -1 [0] Nothing
-
-      graph =
-        RG
-          { replicaId = replicaId
-          , maxReplicas = maxReplicas
-          , operations = []
-          , pointer = []
-          , replicas = Dict.empty
-          , root = Node.root
-          , timestamp = id
-          , lastOperation = Batch []
-          }
-  in
-      applyLocal operation graph
-        |> Result.map branchPointer
-        |> Result.withDefault graph
+  RG
+    { replicaId = ReplicaId.fromInt id
+    , maxReplicas = maxReplicas
+    , operations = []
+    , pointer = [0]
+    , replicas = Dict.empty
+    , root = Node.root
+    , timestamp = id
+    , lastOperation = Batch []
+    }
 
 
 {-| Build and add a node after pointer position
 -}
-add : Maybe a -> RG a -> Result Error (RG a)
-add maybeA (RG record as graph) =
+add : a -> RG a -> Result Error (RG a)
+add value (RG record as graph) =
   let
       {timestamp, replicaId} = record
 
       newTimestamp = nextTimestamp graph timestamp
   in
-      applyLocal (Add replicaId newTimestamp record.pointer maybeA) graph
+      applyLocal (Add replicaId newTimestamp record.pointer value) graph
 
 
 {-| Build and add a branch after pointer position
 -}
-addBranch : Maybe a -> RG a -> Result Error (RG a)
-addBranch maybeA rga =
-  add maybeA rga |> Result.map branchPointer
+addBranch : a -> RG a -> Result Error (RG a)
+addBranch value rga =
+  add value rga |> Result.map branchPointer
 
 
-{-| Mark a RG node as a `Tombstone`
+{-| Delete a node
 -}
 delete : Path -> RG a -> Result Error (RG a)
 delete path (RG record as graph) =
   applyLocal (Delete record.replicaId path) graph
 
 
-{-| Apply a list of functions that edit a RG to a RG
+{-| Apply a list of operations
 -}
 batch : List (RG a -> Result Error (RG a)) -> RG a
                                            -> Result Error (RG a)
@@ -196,7 +184,7 @@ applyLocal operation (RG record as graph) =
                 Ok <| update <| RG { record | root = root }
   in
       case operation of
-        Add replica timestamp path data ->
+        Add replica timestamp path value ->
           let
               nodePath =
                 List.reverse path
@@ -206,7 +194,7 @@ applyLocal operation (RG record as graph) =
                   |> List.reverse
 
               fun =
-                addFun data nodePath
+                addFun value nodePath
           in
               updateBranch fun path record.root
                 |> mapResult replica timestamp path
@@ -247,20 +235,30 @@ batchFold rga opFuns result =
           batchFold rga fs ((Result.andThen fun) result)
 
 
-addFun : Maybe a -> Path
-                 -> Maybe Int
-                 -> List (Node a)
-                 -> Result RG.List.Error (List (Node a))
-addFun maybeA path maybePreviousTs nodes =
+addFun : a -> Path
+           -> Maybe Int
+           -> List (Node a)
+           -> Result RG.List.Error (List (Node a))
+addFun value path maybePreviousTs nodes =
   let
-      node = Node.init maybeA path
+      node =
+        Node.init value path
+
+      timestamp =
+        Node.timestamp node
+
   in
       case maybePreviousTs of
         Just previousTs ->
           insertWhen (Node.hasTimestamp previousTs) node nodes
 
         Nothing ->
-          Ok [ node ]
+          case find (\n -> (Node.timestamp n) == timestamp) nodes of
+            Just _ ->
+              Err AlreadyApplied
+
+            Nothing ->
+              Ok [ node ]
 
 
 deleteFun : Path -> Maybe Int
@@ -287,29 +285,38 @@ updateBranch fun path parent =
     Tombstone _ ->
       Err AddToTombstone
 
-    Node ({children} as payload) ->
+    Root {children} ->
+      updateBranchHelp fun path parent children
+
+    Node {children} ->
+      updateBranchHelp fun path parent children
+
+
+updateBranchHelp fun path parent children =
+  case path of
+    [] ->
+      Err NotFound
+
+    [0] ->
+      fun Nothing children |> updateChildren parent
+
+    ts :: [] ->
+      fun (Just ts) children |> updateChildren parent
+
+    ts :: tss ->
       let
-          updateChildren =
-            Result.map (\c -> Node { payload | children = c })
+          update node =
+            updateBranch fun tss node
+              |> Result.map List.singleton
       in
-          case path of
-            [] ->
-              Err NotFound
+          applyWhen (Node.hasTimestamp ts) update children
+            |> updateChildren parent
 
-            [0] ->
-              fun Nothing children |> updateChildren
 
-            ts :: [] ->
-              fun (Just ts) children |> updateChildren
-
-            ts :: tss ->
-              let
-                  branchFun node =
-                    updateBranch fun tss node
-                      |> Result.map List.singleton
-              in
-                  applyWhen (Node.hasTimestamp ts) branchFun children
-                    |> updateChildren
+updateChildren : Node a -> Result RG.List.Error (List (Node a))
+                        -> Result RG.List.Error (Node a)
+updateChildren parent result =
+  Result.map (\children -> Node.updateChildren children parent) result
 
 
 branchPointer : RG a -> RG a
@@ -385,14 +392,19 @@ lastOperation (RG record) =
 -}
 operationsSince : Int -> RG a -> List (Operation a)
 operationsSince timestamp (RG record) =
-  Operation.since timestamp record.operations
+  case timestamp of
+    0 ->
+      record.operations |> List.reverse
+
+    _ ->
+      Operation.since timestamp record.operations
 
 
-{-| Find a node at a path
+{-| Get a value at path
 -}
-getNode : Path -> RG a -> Maybe (Node a)
-getNode path (RG record) =
-  Node.descendant path record.root
+get : Path -> RG a -> Maybe a
+get path (RG record) =
+  Node.descendant path record.root |> Maybe.andThen Node.value
 
 
 buildPath : Int -> Path -> Path

@@ -12,9 +12,6 @@ import Json.Decode as Decode exposing
   , field
   , succeed
   , decodeValue
-  , oneOf
-  , maybe
-  , null
   )
 import Json.Encode as Encode exposing
   ( Value
@@ -32,17 +29,15 @@ import Dict exposing (Dict)
 anything and returns a value
 -}
 operationEncoder : (a -> Value) -> Operation a -> Value
-operationEncoder encoder operation =
+operationEncoder valueEncoder operation =
   case operation of
-    Add replicaId ts path a ->
+    Add replicaId ts path value ->
       Encode.object
         [ ( "op", string "add" )
         , ( "path", (list int path) )
         , ( "rid", int <| ReplicaId.toInt replicaId )
         , ( "ts", int ts )
-        , ( "a", Maybe.map encoder a
-                  |> Maybe.withDefault Encode.null
-          )
+        , ( "val", valueEncoder value )
         ]
 
     Delete replicaId path ->
@@ -55,27 +50,27 @@ operationEncoder encoder operation =
     Batch operations ->
       Encode.object
         [ ( "op", string "batch" )
-        , ( "ops", list (operationEncoder encoder) operations )
+        , ( "ops", list (operationEncoder valueEncoder) operations )
         ]
 
 
 {-| Decoder for an operation
 -}
 operationDecoder : Decoder a -> Decoder (Operation a)
-operationDecoder decoder =
+operationDecoder valueDecoder =
   (field "op" Decode.string)
-    |> Decode.andThen (operationDecoderHelp decoder)
+    |> Decode.andThen (operationDecoderHelp valueDecoder)
 
 
 operationDecoderHelp : Decoder a -> String -> Decoder (Operation a)
-operationDecoderHelp decoder operationType =
+operationDecoderHelp valueDecoder operationType =
   case operationType of
     "add" ->
       Decode.map4 Add
         (field "rid" (Decode.int |> Decode.map ReplicaId.fromInt))
         (field "ts" Decode.int)
         (field "path" <| Decode.list Decode.int)
-        (field "a" (oneOf [null Nothing, maybe decoder]))
+        (field "val" valueDecoder)
 
     "del" ->
       Decode.map2 Delete
@@ -84,12 +79,10 @@ operationDecoderHelp decoder operationType =
 
     "batch" ->
       Decode.map Batch
-        (field "ops" <| Decode.list (operationDecoder decoder))
+        (field "ops" <| Decode.list (operationDecoder valueDecoder))
 
     _ ->
       Decode.succeed <| Batch []
-
-
 
 
 {-| Last known timestamp for a given replica

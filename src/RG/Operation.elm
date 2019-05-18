@@ -12,7 +12,7 @@ import RG.ReplicaId as ReplicaId exposing (ReplicaId)
 {-| Represents an RG operation
 -}
 type Operation a
-  = Add ReplicaId Int Path (Maybe a)
+  = Add ReplicaId Int Path a
   | Delete ReplicaId Path
   | Batch (List (Operation a))
 

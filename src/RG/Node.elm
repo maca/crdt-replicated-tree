@@ -5,11 +5,12 @@ module RG.Node exposing
   , root
   , tombstone
   , children
-  , data
+  , value
   , timestamp
   , path
   , descendant
   , hasTimestamp
+  , updateChildren
   )
 
 {-| This module implements types and functions to build, find, get
@@ -21,7 +22,7 @@ values from, and compare nodes
 @docs root
 @docs tombstone
 @docs children
-@docs data
+@docs value
 @docs timestamp
 @docs path
 @docs descendant
@@ -44,21 +45,22 @@ data or a `Tombstone` representing a removed Node
 type Node a
   = Node { path: Path
          , children: List (Node a)
-         , data: Maybe a
+         , value: a
          }
   | Tombstone { path: Path }
+  | Root { children: List (Node a) }
 
 
 {-| Build a node
 
     timestamp (node (Just 'a') [0, 1]) == 1
     path (node (Just 'a') [0, 1]) == [0, 1]
-    data (node (Just 'a') [0, 1]) == Just 'a'
+    value (node (Just 'a') [0, 1]) == Just 'a'
  -}
-init : Maybe a -> Path -> Node a
-init maybeA p =
+init : a -> Path -> Node a
+init val p =
   Node
-    { data = maybeA
+    { value = val
     , path = p
     , children = []
     }
@@ -68,18 +70,18 @@ init maybeA p =
 
     timestamp root == 0
     path root == []
-    data root == Nothing
+    value root == Nothing
  -}
 root : Node a
 root =
-  init Nothing []
+  Root { children = [] }
 
 
 {-| Build a tombstone providing timestamp and path
 
     timestamp (tombstone [0, 1]) == 1
     path (tombstone [0, 1]) == [0, 1]
-    data (tombstone [0, 1]) == Nothing
+    value (tombstone [0, 1]) == Nothing
 -}
 tombstone : Path -> Node a
 tombstone p =
@@ -93,6 +95,7 @@ children n =
   case n of
     Node record -> record.children
     Tombstone _ -> []
+    Root record -> record.children
 
 
 {-| Return `Just` a nodes' children if found by timestamp or `Nothing`
@@ -117,16 +120,17 @@ descendant nodePath n =
       child ts n |> Maybe.andThen (descendant tss)
 
 
-{-| Return the data of a node
+{-| Return the value of a node
 
-    data (node (Just 'a') [0, 1]) == Just 'a'
-    data (tombstone [0, 1]) == Nothing
+    value (node (Just 'a') [0, 1]) == Just 'a'
+    value (tombstone [0, 1]) == Nothing
 -}
-data : Node a -> Maybe a
-data n =
+value : Node a -> Maybe a
+value n =
   case n of
-    Node rec -> rec.data
+    Node rec -> Just rec.value
     Tombstone _ -> Nothing
+    Root _ -> Nothing
 
 
 {-| Return the timestamp of a node
@@ -147,6 +151,7 @@ path n =
   case n of
     Node rec -> rec.path
     Tombstone rec -> rec.path
+    Root _ -> [-1]
 
 
 {-| Determine wether a node has a timestamp
@@ -157,5 +162,17 @@ path n =
 hasTimestamp : Int -> Node a -> Bool
 hasTimestamp ts n =
   (timestamp n) == ts
+
+
+updateChildren : List (Node a) -> Node a -> Node a
+updateChildren ch node =
+  case node of
+    Root record ->
+      Root { record | children = ch }
+
+    Node record ->
+      Node { record | children = ch }
+
+    Tombstone _ -> node
 
 
