@@ -59,6 +59,7 @@ import CRDTree.Operation as Operation exposing (Operation(..))
 import CRDTree.ReplicaId as ReplicaId exposing (ReplicaId)
 
 
+
 {-| Opaque type representing a Replicated Tree,
 to initialize see [int](#init).
 -}
@@ -86,7 +87,8 @@ type Error =
 
 
 type alias UpdateFun a =
-  Maybe Int -> List (Node a) -> Result CRDTree.List.Error (List (Node a))
+  Maybe Int -> List (Node a)
+            -> Result CRDTree.List.Error (List (Node a))
 
 
 type alias NodeFun a =
@@ -110,6 +112,10 @@ init {id, maxReplicas} =
 
 
 {-| Build and add a node after pointer position
+
+    init { id = 1, maxReplicas = 4 }
+      |> add 'a'
+
 -}
 add : a -> CRDTree a -> Result Error (CRDTree a)
 add value (CRDTree record as tree) =
@@ -129,6 +135,10 @@ addBranch value rga =
 
 
 {-| Delete a node
+
+    init { id = 1, maxReplicas = 4 }
+      |> add 'a'
+      |> Result.map (add 'b')
 -}
 delete : List Int -> CRDTree a -> Result Error (CRDTree a)
 delete path (CRDTree record as tree) =
@@ -218,7 +228,8 @@ applyLocal operation (CRDTree record as tree) =
 
 
 applyBatch funcs (CRDTree record as tree) =
-  batchFold tree funcs (Ok <| CRDTree { record | lastOperation = Batch [] })
+  batchFold tree funcs
+    (Ok <| CRDTree { record | lastOperation = Batch [] })
 
 
 batchFold : CRDTree a -> List (CRDTree a -> Result Error (CRDTree a))
@@ -379,7 +390,8 @@ mergeTimestamp rga timestamp operationTimestamp =
 -}
 nextTimestamp : CRDTree a -> Int -> Int
 nextTimestamp (CRDTree record) timestamp =
-  timestamp + (if record.maxReplicas < 2 then 1 else record.maxReplicas - 1)
+  timestamp +
+    (if record.maxReplicas < 2 then 1 else record.maxReplicas - 1)
 
 
 {-| Return the last successfully applied operation

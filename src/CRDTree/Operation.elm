@@ -5,6 +5,15 @@ module CRDTree.Operation exposing
   , merge
   )
 
+{-| Represents an CRDTree operation
+
+@docs Operation
+@docs since
+@docs toList
+@docs merge
+
+-}
+
 import CRDTree.Node as Node
 import CRDTree.ReplicaId as ReplicaId exposing (ReplicaId)
 
@@ -47,6 +56,10 @@ sinceFold timestamp operations acc =
             sinceFold timestamp os (o :: acc)
 
 
+{-|
+List of operations
+
+-}
 toList : Operation a -> List (Operation a)
 toList operation =
   case operation of
@@ -55,6 +68,10 @@ toList operation =
     Batch list -> list
 
 
+{-|
+Merge two operations
+
+-}
 merge : Operation a -> Operation a -> Operation a
 merge a b =
   Batch ((toList a) ++ (toList b))

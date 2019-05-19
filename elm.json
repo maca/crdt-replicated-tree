@@ -7,6 +7,7 @@
     "source-directories": ["src"],
     "exposed-modules": [
         "CRDTree",
+        "CRDTree.Operation",
         "CRDTree.Json"
     ],
     "elm-version": "0.19.0 <= v < 0.20.0",
