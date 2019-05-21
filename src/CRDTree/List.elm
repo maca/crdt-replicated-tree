@@ -13,7 +13,7 @@ type Error
   = NotFound
   | ApplicationFailed
   | AlreadyApplied
-  | AddToTombstone
+  | TombstoneUpdate
 
 
 find : (a -> Bool) -> List a -> Maybe a

@@ -1,5 +1,5 @@
 module CRDTree.Node exposing
-  ( Node(..)
+  ( Node
   , init
   , root
   , tombstone
@@ -7,6 +7,7 @@ module CRDTree.Node exposing
   , value
   , timestamp
   , path
+  , isDeleted
   , descendant
   , hasTimestamp
   , updateChildren
@@ -22,6 +23,7 @@ values from, and compare nodes
 @docs children
 @docs value
 @docs timestamp
+@docs isDeleted
 @docs path
 @docs descendant
 @docs hasTimestamp
@@ -145,6 +147,16 @@ path n =
     Root _ -> [-1]
     Node rec -> rec.path
     Tombstone rec -> rec.path
+
+
+{-| Return `True` if the node has been deleted
+-}
+isDeleted : Node a -> Bool
+isDeleted n =
+  case n of
+    Root _ -> False
+    Node _ -> False
+    Tombstone _ -> True
 
 
 {-| Determine wether a node has a timestamp

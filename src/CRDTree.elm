@@ -37,7 +37,7 @@ declared.
 @docs operationsSince
 @docs lastOperation
 
-# Nodes
+# Tree
 
 @docs get
 
@@ -69,7 +69,7 @@ type CRDTree a =
     , maxReplicas: Int
     , root : Node a
     , timestamp: Int
-    , pointer: List Int
+    , cursor: List Int
     , operations: List (Operation a)
     , replicas: Dict Int Int
     , lastOperation: Operation a
@@ -103,7 +103,7 @@ init {id, maxReplicas} =
     { replicaId = ReplicaId.fromInt id
     , maxReplicas = maxReplicas
     , operations = []
-    , pointer = [0]
+    , cursor = [0]
     , replicas = Dict.empty
     , root = Node.root
     , timestamp = id
@@ -111,7 +111,7 @@ init {id, maxReplicas} =
     }
 
 
-{-| Build and add a node after pointer position
+{-| Build and add a node after cursor cursor
 
     init { id = 1, maxReplicas = 4 }
       |> add 'a'
@@ -124,14 +124,14 @@ add value (CRDTree record as tree) =
 
       newTimestamp = nextTimestamp tree timestamp
   in
-      applyLocal (Add replicaId newTimestamp record.pointer value) tree
+      applyLocal (Add replicaId newTimestamp record.cursor value) tree
 
 
-{-| Build and add a branch after pointer position
+{-| Build and add a branch after cursor
 -}
 addBranch : a -> CRDTree a -> Result Error (CRDTree a)
 addBranch value rga =
-  add value rga |> Result.map branchPointer
+  add value rga |> Result.map branchCursor
 
 
 {-| Delete a node
@@ -160,10 +160,10 @@ apply : Operation a -> CRDTree a -> Result Error (CRDTree a)
 apply operation tree =
   applyLocal operation tree
     |> Result.map (\(CRDTree record) ->
-        CRDTree { record | pointer = record.pointer })
+        CRDTree { record | cursor = record.cursor })
 
 
-{-| Apply a local operation, the pointer for the `CRDTree` will
+{-| Apply a local operation, the cursor for the `CRDTree` will
 change
 -}
 applyLocal : Operation a -> CRDTree a -> Result Error (CRDTree a)
@@ -174,7 +174,7 @@ applyLocal operation (CRDTree record as tree) =
           Err AlreadyApplied ->
             Ok <| CRDTree { record | lastOperation = Batch [] }
 
-          Err AddToTombstone ->
+          Err TombstoneUpdate ->
             Ok <| CRDTree { record | lastOperation = Batch [] }
 
           Err exp ->
@@ -190,7 +190,7 @@ applyLocal operation (CRDTree record as tree) =
                 update =
                   updateTimestamp replicaId timestamp
                     >> appendOperation operation
-                    >> updatePointer timestamp path
+                    >> updateCursor timestamp path
             in
                 Ok <| update <| CRDTree { record | root = root }
   in
@@ -293,15 +293,10 @@ updateBranch : UpdateFun a -> List Int
                            -> Node a
                            -> Result CRDTree.List.Error (Node a)
 updateBranch fun path parent =
-  case parent of
-    Tombstone _ ->
-      Err AddToTombstone
-
-    Root {children} ->
-      updateBranchHelp fun path parent children
-
-    Node {children} ->
-      updateBranchHelp fun path parent children
+  if Node.isDeleted parent then
+    Err TombstoneUpdate
+  else
+    updateBranchHelp fun path parent <| Node.children parent
 
 
 updateBranchHelp fun path parent children =
@@ -331,9 +326,9 @@ updateChildren parent result =
   Result.map (\children -> Node.updateChildren children parent) result
 
 
-branchPointer : CRDTree a -> CRDTree a
-branchPointer (CRDTree record) =
-  CRDTree { record | pointer = record.pointer ++ [0] }
+branchCursor : CRDTree a -> CRDTree a
+branchCursor (CRDTree record) =
+  CRDTree { record | cursor = record.cursor ++ [0] }
 
 
 mergeLastOperation : CRDTree a -> CRDTree a -> CRDTree a
@@ -346,9 +341,9 @@ mergeLastOperation (CRDTree record1) (CRDTree record2) =
     CRDTree { record2 | lastOperation = operation }
 
 
-updatePointer : Int -> List Int -> CRDTree a -> CRDTree a
-updatePointer timestamp path (CRDTree record) =
-  CRDTree { record | pointer = buildPath timestamp path }
+updateCursor : Int -> List Int -> CRDTree a -> CRDTree a
+updateCursor timestamp path (CRDTree record) =
+  CRDTree { record | cursor = buildPath timestamp path }
 
 
 appendOperation : Operation a -> CRDTree a -> CRDTree a
