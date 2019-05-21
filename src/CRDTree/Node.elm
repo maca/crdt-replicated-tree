@@ -1,15 +1,14 @@
 module CRDTree.Node exposing
   ( Node
-  , init
-  , root
-  , tombstone
-  , children
   , value
   , timestamp
   , path
   , isDeleted
+  , children
   , descendant
-  , hasTimestamp
+  , init
+  , root
+  , tombstone
   , updateChildren
   )
 
@@ -17,16 +16,24 @@ module CRDTree.Node exposing
 values from, and compare nodes
 
 @docs Node
+
+# Properties
+@docs value
+@docs timestamp
+@docs path
+@docs isDeleted
+
+# Traverse
+@docs children
+@docs descendant
+
+# Build
 @docs init
 @docs root
 @docs tombstone
-@docs children
-@docs value
-@docs timestamp
-@docs isDeleted
-@docs path
-@docs descendant
-@docs hasTimestamp
+
+# Update
+@docs updateChildren
 
 -}
 
@@ -159,16 +166,8 @@ isDeleted n =
     Tombstone _ -> True
 
 
-{-| Determine wether a node has a timestamp
-
-    hasTimestamp 1 (node (Just 'a') [0, 1]) == True
-    hasTimestamp 1 (node (Just 'a') [0, 2]) == False
+{-| Update a Node's children
 -}
-hasTimestamp : Int -> Node a -> Bool
-hasTimestamp ts n =
-  (timestamp n) == ts
-
-
 updateChildren : List (Node a) -> Node a -> Node a
 updateChildren ch node =
   case node of

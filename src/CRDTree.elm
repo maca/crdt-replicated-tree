@@ -9,6 +9,7 @@ module CRDTree exposing
   , apply
   , operationsSince
   , lastOperation
+  , root
   , get
   )
 
@@ -39,6 +40,7 @@ declared.
 
 # Tree
 
+@docs root
 @docs get
 
 -}
@@ -61,7 +63,7 @@ import CRDTree.ReplicaId as ReplicaId exposing (ReplicaId)
 
 
 {-| Opaque type representing a Replicated Tree,
-to initialize see [int](#init).
+to build see [int](#init).
 -}
 type CRDTree a =
   CRDTree
@@ -185,14 +187,14 @@ applyLocal operation (CRDTree record as tree) =
                 , path = path
                 }
 
-          Ok root ->
+          Ok node ->
             let
                 update =
                   updateTimestamp replicaId timestamp
                     >> appendOperation operation
                     >> updateCursor timestamp path
             in
-                Ok <| update <| CRDTree { record | root = root }
+                Ok <| update <| CRDTree { record | root = node }
   in
       case operation of
         Add replica timestamp path value ->
@@ -262,7 +264,7 @@ addFun value path maybePreviousTs nodes =
   in
       case maybePreviousTs of
         Just previousTs ->
-          insertWhen (Node.hasTimestamp previousTs) node nodes
+          insertWhen (\n -> (Node.timestamp n) == previousTs) node nodes
 
         Nothing ->
           case find (\n -> (Node.timestamp n) == timestamp) nodes of
@@ -281,7 +283,7 @@ deleteFun path maybePreviousTs nodes =
     Just previousTs ->
       let
           node = Node.tombstone path
-          pred = Node.hasTimestamp previousTs
+          pred = (\n -> (Node.timestamp n) == previousTs)
       in
           replaceWhen pred node nodes
 
@@ -316,7 +318,7 @@ updateBranchHelp fun path parent children =
             updateBranch fun tss node
               |> Result.map List.singleton
       in
-          applyWhen (Node.hasTimestamp ts) update children
+          applyWhen (\n -> (Node.timestamp n) == ts) update children
             |> updateChildren parent
 
 
@@ -396,7 +398,7 @@ lastOperation (CRDTree record) =
   record.lastOperation
 
 
-{-| Return a list of operations since a timestamp
+{-| Return a list of operations after a known timestamp
 -}
 operationsSince : Int -> CRDTree a -> List (Operation a)
 operationsSince timestamp (CRDTree record) =
@@ -406,6 +408,13 @@ operationsSince timestamp (CRDTree record) =
 
     _ ->
       Operation.since timestamp record.operations
+
+
+{-| Get a value at path
+-}
+root : CRDTree a -> Node a
+root (CRDTree record) =
+  record.root
 
 
 {-| Get a value at path
