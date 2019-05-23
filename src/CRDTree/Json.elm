@@ -84,12 +84,3 @@ operationDecoderHelp valueDecoder operationType =
     _ ->
       Decode.succeed <| Batch []
 
-
-{-| Last known timestamp for a given replica
-not used yet
--}
-lastReplicaTimestamp : Int -> Dict Int Int -> Int
-lastReplicaTimestamp rid replicas =
-  Dict.get rid replicas |> Maybe.withDefault -1
-
-
