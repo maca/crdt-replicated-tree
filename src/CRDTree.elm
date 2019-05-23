@@ -9,8 +9,11 @@ module CRDTree exposing
   , apply
   , operationsSince
   , lastOperation
+  , id
   , root
   , get
+  , cursor
+  , moveCursorUp
   )
 
 {-| `CRDTree` is a Replicated Tree, it keeps the local replica
@@ -29,7 +32,6 @@ declared.
 
 # Operations
 
-@docs Error
 @docs add
 @docs addBranch
 @docs delete
@@ -40,8 +42,11 @@ declared.
 
 # Tree
 
+@docs id
 @docs root
 @docs get
+@docs cursor
+@docs moveCursorUp
 
 -}
 
@@ -80,12 +85,11 @@ type CRDTree a =
 
 {-| Failure to apply an operation.
 -}
-type Error =
-  Error
-    { replicaId: ReplicaId
-    , timestamp: Int
-    , path: List Int
-    }
+type alias Error =
+  { replicaId: ReplicaId
+  , timestamp: Int
+  , path: List Int
+  }
 
 
 type alias UpdateFun a =
@@ -100,20 +104,20 @@ type alias NodeFun a =
 {-| Build a CRDTree
 -}
 init : { id: Int, maxReplicas: Int } -> CRDTree a
-init {id, maxReplicas} =
+init params =
   CRDTree
-    { replicaId = ReplicaId.fromInt id
-    , maxReplicas = maxReplicas
+    { replicaId = ReplicaId.fromInt params.id
+    , maxReplicas = params.maxReplicas
     , operations = []
     , cursor = [0]
     , replicas = Dict.empty
     , root = Node.root
-    , timestamp = id
+    , timestamp = params.id
     , lastOperation = Batch []
     }
 
 
-{-| Build and add a node after cursor cursor
+{-| Build and add a node after tree cursor
 
     init { id = 1, maxReplicas = 4 }
       |> add 'a'
@@ -122,14 +126,12 @@ init {id, maxReplicas} =
 add : a -> CRDTree a -> Result Error (CRDTree a)
 add value (CRDTree record as tree) =
   let
-      {timestamp, replicaId} = record
-
-      newTimestamp = nextTimestamp tree timestamp
+      newTimestamp = nextTimestamp tree record.timestamp
   in
-      applyLocal (Add replicaId newTimestamp record.cursor value) tree
+      applyLocal (Add record.replicaId newTimestamp record.cursor value) tree
 
 
-{-| Build and add a branch after cursor
+{-| Build and add a branch after tree cursor
 -}
 addBranch : a -> CRDTree a -> Result Error (CRDTree a)
 addBranch value rga =
@@ -171,7 +173,7 @@ change
 applyLocal : Operation a -> CRDTree a -> Result Error (CRDTree a)
 applyLocal operation (CRDTree record as tree) =
   let
-      mapResult replicaId timestamp path result =
+      mapResult rid timestamp path result =
         case result of
           Err AlreadyApplied ->
             Ok <| CRDTree { record | lastOperation = Batch [] }
@@ -181,16 +183,15 @@ applyLocal operation (CRDTree record as tree) =
 
           Err exp ->
             Err <|
-              Error
-                { replicaId = replicaId
-                , timestamp = timestamp
-                , path = path
-                }
+              { replicaId = rid
+              , timestamp = timestamp
+              , path = path
+              }
 
           Ok node ->
             let
                 update =
-                  updateTimestamp replicaId timestamp
+                  updateTimestamp rid timestamp
                     >> appendOperation operation
                     >> updateCursor timestamp path
             in
@@ -357,17 +358,17 @@ appendOperation operation (CRDTree record) =
 
 
 updateTimestamp : ReplicaId -> Int -> CRDTree a -> CRDTree a
-updateTimestamp replicaId operationTimestamp (CRDTree record as tree) =
+updateTimestamp rid operationTimestamp (CRDTree record as tree) =
   let
       timestamp =
         mergeTimestamp tree record.timestamp operationTimestamp
 
-      id =
-        ReplicaId.toInt replicaId
+      replicaId =
+        ReplicaId.toInt rid
   in
       CRDTree
         { record | timestamp = timestamp
-        , replicas = Dict.insert id operationTimestamp record.replicas
+        , replicas = Dict.insert replicaId operationTimestamp record.replicas
         }
 
 
@@ -398,6 +399,13 @@ lastOperation (CRDTree record) =
   record.lastOperation
 
 
+{-| The local replica id
+-}
+id : CRDTree a -> ReplicaId
+id (CRDTree record) =
+  record.replicaId
+
+
 {-| Return a list of operations after a known timestamp
 -}
 operationsSince : Int -> CRDTree a -> List (Operation a)
@@ -422,6 +430,26 @@ root (CRDTree record) =
 get : List Int -> CRDTree a -> Maybe a
 get path (CRDTree record) =
   Node.descendant path record.root |> Maybe.andThen Node.value
+
+
+{-| Return the tree cursor
+-}
+cursor : CRDTree a -> List Int
+cursor (CRDTree record) =
+  record.cursor
+
+
+{-| Move the tree cursor to the nearest branch above
+-}
+moveCursorUp : CRDTree a -> CRDTree a
+moveCursorUp (CRDTree record as tree) =
+  let
+      newCursor =
+        List.head (cursor tree)
+        |> Maybe.withDefault 0
+        |> List.singleton
+  in
+      CRDTree { record | cursor = newCursor }
 
 
 buildPath : Int -> List Int -> List Int
