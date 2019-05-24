@@ -100,14 +100,14 @@ children n =
     Tombstone _ -> []
 
 
-{-| Return `Just` a nodes' children if found by timestamp or `Nothing`
+{-| Find a node child matching a timestamp
 -}
 child : Int -> Node a -> Maybe (Node a)
 child ts n =
   children n |> List.find (timestamp >> ((==) ts))
 
 
-{-| Return `Just` a nodes' descendant if found by path or `Nothing`
+{-| Return a Node at a path
 -}
 descendant : List Int -> Node a -> Maybe (Node a)
 descendant nodePath n =
