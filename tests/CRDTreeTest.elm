@@ -14,6 +14,7 @@ import CRDTree exposing
   , delete
   , addBranch
   , add
+  , addAfter
   , apply
   , lastOperation
   , operationsSince
@@ -27,6 +28,8 @@ import CRDTree.ReplicaId as ReplicaId exposing (ReplicaId)
 suite : Test
 suite = describe "CRDTree"
   [ testAdd "adds node"
+
+  , testAddAfter "adds after node"
 
   , testAddBranch
     "adds branch"
@@ -94,6 +97,53 @@ testAdd description =
         , test "sets last operation"
           <| always (expectLastOperation operation result)
         ]
+
+
+testAddAfter description =
+  let
+      replicaId = ReplicaId.fromInt 0
+
+      tree =
+        CRDTree.init
+          { id = ReplicaId.toInt replicaId
+          , maxReplicas = 1
+          }
+
+      operation =
+        Add replicaId 3 [1] "c"
+
+      result =
+        add "a" tree
+          |> Result.andThen (add "b")
+          |> Result.andThen (addAfter [1] "c")
+  in
+      describe description
+        [ test "succeeds"
+          <| always (Expect.ok result)
+
+        , test "addAfter adds first node" <| \_ ->
+          expectNode [1] (Just "a") result
+
+        , test "addAfter adds second node" <| \_ ->
+          expectNode [2] (Just "b") result
+
+        , test "addAfter adds third node" <| \_ ->
+          expectNode [3] (Just "c") result
+
+        , test "addAfter sets tree operations" <| \_ ->
+          let
+              operations =
+                  [ Add replicaId 1 [0] "a"
+                  , Add replicaId 2 [1] "b"
+                  , Add replicaId 3 [1] "c"
+                  ]
+          in
+              expectOperations operations result
+
+        , test "sets last operation"
+          <| always (expectLastOperation operation result)
+        ]
+
 
 
 testBatch description =

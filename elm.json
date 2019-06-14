@@ -3,7 +3,7 @@
     "name": "maca/crdt-replicated-tree",
     "summary": "Implementation of a CRDT algorithm for replicated trees",
     "license": "BSD-3-Clause",
-    "version": "1.0.1",
+    "version": "1.1.0",
     "source-directories": ["src"],
     "exposed-modules": [
         "CRDTree",

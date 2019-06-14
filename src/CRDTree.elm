@@ -3,6 +3,7 @@ module CRDTree exposing
   , Error(..)
   , init
   , add
+  , addAfter
   , addBranch
   , delete
   , batch
@@ -34,6 +35,7 @@ declared.
 
 @docs Error
 @docs add
+@docs addAfter
 @docs addBranch
 @docs batch
 @docs delete
@@ -123,7 +125,7 @@ init params =
     }
 
 
-{-| Build and add a node after tree cursor, the cursor is set
+{-| Add a node after tree cursor, the cursor is set
 at the added node path.
 
     init { id = 1, maxReplicas = 4 }
@@ -134,13 +136,29 @@ at the added node path.
 -}
 add : a -> CRDTree a -> Result (Error a) (CRDTree a)
 add value (CRDTree record as tree) =
+  addAfter record.cursor value tree
+
+
+{-| Add a node after another node at given path,
+the cursor is set at the added node path.
+
+    init { id = 1, maxReplicas = 1 }
+      |> add "a"
+      |> Result.andThen (add "b")
+      |> Result.andThen (addAfter [1] "c")
+    -- inserts node with value "c" between nodes "a" and "b"
+
+-}
+addAfter : List Int -> a -> CRDTree a -> Result (Error a) (CRDTree a)
+addAfter path value (CRDTree record as tree) =
   let
-      newTimestamp = nextTimestamp tree record.timestamp
+      timestamp = nextTimestamp tree record.timestamp
+      operation = Add record.replicaId timestamp path value
   in
-      applyLocal (Add record.replicaId newTimestamp record.cursor value) tree
+      applyLocal operation tree
 
 
-{-| Build and add a branch after tree cursor, subsequent
+{-| Add a branch after tree cursor, subsequent
 additions are added to the branch.
 
     init { id = 1, maxReplicas = 4 }
