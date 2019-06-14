@@ -13,6 +13,7 @@ module CRDTree exposing
   , id
   , root
   , get
+  , getValue
   , cursor
   , moveCursorUp
   )
@@ -48,6 +49,7 @@ declared.
 @docs id
 @docs root
 @docs get
+@docs getValue
 @docs cursor
 @docs moveCursorUp
 
@@ -146,7 +148,7 @@ the cursor is set at the added node path.
       |> add "a"
       |> Result.andThen (add "b")
       |> Result.andThen (addAfter [1] "c")
-    -- inserts node with value "c" between nodes "a" and "b"
+    -- node with value "c" is inserted between nodes "a" and "b"
 
 -}
 addAfter : List Int -> a -> CRDTree a -> Result (Error a) (CRDTree a)
@@ -528,15 +530,38 @@ root (CRDTree record) =
         |> batch [ addBranch "a", addBranch "b", add "c" ]
         |> Result.withDefault tree
 
+    (get [1] treeA) == (Just (Node.init "a" [1]))
+    (get [1, 2] treeA) == (Just (Node.init "b" [1,2]))
+    (get [1, 2, 3] treeA) == (Just (Node.init "c" [1, 2, 3]))
+    (get [4] treeA) == Nothing
+
+-}
+get : List Int -> CRDTree a -> Maybe (Node a)
+get path (CRDTree record) =
+  Node.descendant path record.root
+
+
+{-| Get a value at path
+
+    treeA : CRDTree String
+    treeA =
+      let
+          tree =
+            init { id = 1, maxReplicas = 1 }
+      in
+      tree
+        |> batch [ addBranch "a", addBranch "b", add "c" ]
+        |> Result.withDefault tree
+
     (get [1] treeA) == (Just "a")
     (get [1, 2] treeA) == (Just "b")
     (get [1, 2, 3] treeA) == (Just "c")
     (get [4] treeA) == Nothing
 
 -}
-get : List Int -> CRDTree a -> Maybe a
-get path (CRDTree record) =
-  Node.descendant path record.root |> Maybe.andThen Node.value
+getValue : List Int -> CRDTree a -> Maybe a
+getValue path tree =
+  get path tree |> Maybe.andThen Node.value
 
 
 {-| Return the tree cursor

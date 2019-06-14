@@ -19,6 +19,7 @@ import CRDTree exposing
   , lastOperation
   , operationsSince
   , get
+  , getValue
   )
 import CRDTree.Node as Node exposing (Node, tombstone)
 import CRDTree.Operation as Operation exposing (Operation(..))
@@ -627,7 +628,7 @@ testOperationsSince description =
 
 expectNode path exp result =
   expect (\tree ->
-    Expect.equal exp (get path tree)) result
+    Expect.equal exp (getValue path tree)) result
 
 
 expectOperations exp result =

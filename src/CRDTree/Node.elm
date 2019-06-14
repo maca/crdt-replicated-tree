@@ -55,9 +55,9 @@ type Node a
 
 {-| Build a node
 
-    timestamp (node (Just 'a') [0, 1]) == 1
-    path (node (Just 'a') [0, 1]) == [0, 1]
-    value (node (Just 'a') [0, 1]) == Just 'a'
+    timestamp (init 'a' [0, 1]) == 1
+    path (init 'a' [0, 1]) == [0, 1]
+    value (init 'a' [0, 1]) == Just 'a'
  -}
 init : a -> List Int -> Node a
 init val p =
@@ -124,7 +124,7 @@ descendant nodePath n =
 
 {-| Return the value of a node
 
-    value (node (Just 'a') [0, 1]) == Just 'a'
+    value (node 'a' [0, 1]) == Just 'a'
     value (tombstone [0, 1]) == Nothing
 -}
 value : Node a -> Maybe a
@@ -137,7 +137,7 @@ value n =
 
 {-| Return the timestamp of a node
 
-    timestamp (node (Just 'a') [0, 1]) == 1
+    timestamp (node 'a' [0, 1]) == 1
 -}
 timestamp : Node a -> Int
 timestamp n =
