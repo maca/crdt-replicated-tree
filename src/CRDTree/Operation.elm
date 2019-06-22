@@ -5,6 +5,7 @@ module CRDTree.Operation exposing
   , path
   , since
   , toList
+  , fromList
   , merge
   )
 
@@ -20,6 +21,7 @@ module CRDTree.Operation exposing
 # List
 @docs since
 @docs toList
+@docs fromList
 
 # Manipulation
 @docs merge
@@ -70,7 +72,7 @@ sinceFold ts operations acc =
 
 
 {-|
-List of operations
+Operation to List of Operations
 
 -}
 toList : Operation a -> List (Operation a)
@@ -79,6 +81,15 @@ toList operation =
     Add _ _ _ _ -> [ operation ]
     Delete _ _ -> [ operation ]
     Batch list -> list
+
+
+{-|
+List of Operations to Batch
+
+-}
+fromList : List (Operation a) -> Operation a
+fromList operations =
+  Batch operations
 
 
 {-| Merge two operations

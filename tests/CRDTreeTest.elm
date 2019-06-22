@@ -597,6 +597,7 @@ testOperationsSince description =
                 ]
           in
               Expect.equal operations
+                <| Operation.toList
                 <| operationsSince 0 tree
 
         , test "operations since 2" <| \_ ->
@@ -611,6 +612,7 @@ testOperationsSince description =
                 ]
           in
               Expect.equal operations
+                <| Operation.toList
                 <| operationsSince 2 tree
 
         , test "operations since last" <| \_ ->
@@ -619,10 +621,13 @@ testOperationsSince description =
                 [ Add replicaId 6 [5] "f" ]
           in
               Expect.equal operations
+                <| Operation.toList
                 <| operationsSince 6 tree
 
         , test "not present returns empty" <| \_ ->
-          Expect.equal [] <| operationsSince 10 tree
+          Expect.equal []
+            <| Operation.toList
+            <| operationsSince 10 tree
         ]
 
 
@@ -632,7 +637,9 @@ expectNode path exp result =
 
 
 expectOperations exp result =
-  expect (\tree -> Expect.equal exp (operationsSince 0 tree)) result
+  expect (\tree ->
+    Expect.equal exp (Operation.toList <| operationsSince 0 tree)
+    ) result
 
 
 expectLastOperation exp result =

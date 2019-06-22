@@ -490,7 +490,7 @@ timestamp (CRDTree record) =
   record.timestamp
 
 
-{-| Return a list of operations after a known timestamp
+{-| Return a batch of operations after a known timestamp
 
     treeA : CRDTree String
     treeA =
@@ -502,23 +502,26 @@ timestamp (CRDTree record) =
         |> batch [ add "a", add "b" ]
         |> Result.withDefault tree
 
-    (List.length (operationsSince 0 treeA)) == 2
-    (List.length (operationsSince 2 treeA)) == 2
-    (List.length (operationsSince 4 treeA)) == 1
+    (List.length (Operation.toList <| operationsSince 0 treeA)) == 2
+    (List.length (Operation.toList <| operationsSince 2 treeA)) == 2
+    (List.length (Operation.toList <| operationsSince 4 treeA)) == 1
 
     -- 1, 3 are not known timestamps, since the
     -- logic clock increment depends on `maxReplicas`
-    (List.length (operationsSince 1 treeA)) == 0
-    (List.length (operationsSince 3 treeA)) == 0
+    (List.length (Operation.toList <| operationsSince 1 treeA)) == 0
+    (List.length (Operation.toList <| operationsSince 3 treeA)) == 0
+
 -}
-operationsSince : Int -> CRDTree a -> List (Operation a)
+operationsSince : Int -> CRDTree a -> Operation a
 operationsSince initalTimestamp (CRDTree record) =
   case initalTimestamp of
     0 ->
       record.operations |> List.reverse
+        |> Operation.fromList
 
     _ ->
       Operation.since initalTimestamp record.operations
+        |> Operation.fromList
 
 
 {-| Root node of the CRDTree
