@@ -61,6 +61,9 @@ suite = describe "CRDTree"
   , testDeleteIsIdempotent
     "apply same Delete operation yields same results"
 
+  , testTimestamps
+    "timestamp increment is right"
+
   , testOperationsSince
     "gets operations since a timestamp"
   ]
@@ -291,8 +294,6 @@ testApplyBatch description =
         [ Add replicaId 1 [0] "a"
         , Add replicaId 2 [1] "b"
         ]
-
-      -- TODO: test concurrency by adding before and after batch
 
       result =
         apply batch tree
@@ -555,6 +556,51 @@ testDeleteIsIdempotent description =
                 ]
           in
               expectLastOperation operation result
+        ]
+
+testTimestamps description =
+  let
+      batchFun =
+        batch [add "a", add "b", add "c"]
+  in
+      describe description
+        [ test "timestamp is multiple of replica id 1" <| \_ ->
+          let
+              replicaId = ReplicaId.fromInt 0
+
+              tree =
+                CRDTree.init
+                { id = ReplicaId.toInt replicaId
+                , maxReplicas = 2
+                }
+
+              result = batchFun tree
+          in
+              expectOperations
+                [ Add replicaId 2 [0] "a"
+                , Add replicaId 4 [2] "b"
+                , Add replicaId 6 [4] "c"
+                ]
+                result
+
+        , test "timestamp is multiple of replica id 2" <| \_ ->
+          let
+              replicaId = ReplicaId.fromInt 1
+
+              tree =
+                CRDTree.init
+                { id = ReplicaId.toInt replicaId
+                , maxReplicas = 2
+                }
+
+              result = batchFun tree
+          in
+              expectOperations
+                [ Add replicaId 3 [0] "a"
+                , Add replicaId 5 [3] "b"
+                , Add replicaId 7 [5] "c"
+                ]
+                result
         ]
 
 

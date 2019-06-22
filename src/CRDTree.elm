@@ -129,7 +129,7 @@ init params =
     , cursor = [0]
     , replicas = Dict.empty
     , root = Node.root
-    , timestamp = 0
+    , timestamp = params.id
     , lastOperation = Batch []
     }
 
