@@ -17,6 +17,7 @@ module CRDTree exposing
   , getValue
   , cursor
   , moveCursorUp
+  , lastReplicaTimestamp
   )
 
 {-| `CRDTree` is a Replicated Tree, it keeps the local replica
@@ -54,6 +55,10 @@ declared.
 @docs getValue
 @docs cursor
 @docs moveCursorUp
+
+# Replicas
+
+@docs lastReplicaTimestamp
 
 -}
 
@@ -637,4 +642,12 @@ buildPath opTimestamp path =
 
     _ :: rest ->
       List.reverse <| opTimestamp :: rest
+
+
+{-| Last know timestamp for a replica
+-}
+lastReplicaTimestamp : Int -> CRDTree a-> Int
+lastReplicaTimestamp replicaId (CRDTree {replicas}) =
+  Dict.get replicaId replicas |> Maybe.withDefault 0
+
 
