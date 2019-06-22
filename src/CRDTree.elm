@@ -265,7 +265,8 @@ applyLocal operation (CRDTree record as tree) =
           Ok node ->
             let
                 update =
-                  updateTimestamp rid opTimestamp
+                  mergeTimestamp opTimestamp
+                    >> updateReplicas opTimestamp rid
                     >> appendOperation operation
                     >> updateCursor opTimestamp path
             in
@@ -423,27 +424,22 @@ appendOperation operation (CRDTree record) =
     }
 
 
-updateTimestamp : ReplicaId -> Int -> CRDTree a -> CRDTree a
-updateTimestamp rid operationTimestamp (CRDTree record as tree) =
-  let
-      newTimestamp =
-        mergeTimestamp tree record.timestamp operationTimestamp
-
-      replicaId =
-        ReplicaId.toInt rid
-  in
-      CRDTree
-        { record | timestamp = newTimestamp
-        , replicas = Dict.insert replicaId operationTimestamp record.replicas
-        }
-
-
-mergeTimestamp : CRDTree a -> Int -> Int -> Int
-mergeTimestamp tree localTimestamp operationTimestamp =
-  if localTimestamp >= operationTimestamp then
-    localTimestamp
+mergeTimestamp : Int -> CRDTree a -> CRDTree a
+mergeTimestamp ts (CRDTree record as tree) =
+  if record.timestamp >= ts then
+    tree
   else
-    mergeTimestamp tree (nextTimestamp tree) operationTimestamp
+    CRDTree { record | timestamp = nextTimestamp tree }
+      |> mergeTimestamp ts
+
+
+updateReplicas : Int -> ReplicaId -> CRDTree a -> CRDTree a
+updateReplicas ts rid (CRDTree record as tree) =
+  let
+      replicas =
+        Dict.insert (ReplicaId.toInt rid) ts record.replicas
+  in
+      CRDTree { record | replicas = replicas }
 
 
 {-| Get the next timestamp
