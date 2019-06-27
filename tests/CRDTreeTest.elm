@@ -596,9 +596,9 @@ testTimestamps description =
               result = batchFun tree
           in
               expectOperations
-                [ Add replicaId 3 [0] "a"
-                , Add replicaId 5 [3] "b"
-                , Add replicaId 7 [5] "c"
+                [ Add replicaId 1 [0] "a"
+                , Add replicaId 3 [1] "b"
+                , Add replicaId 5 [3] "c"
                 ]
                 result
         ]

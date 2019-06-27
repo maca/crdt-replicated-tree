@@ -9,7 +9,10 @@ module CRDTree.Node exposing
   , init
   , root
   , tombstone
-  , updateChildren
+  , addAfter
+  , delete
+  , updateParent
+  , Error(..)
   )
 
 {-| This module implements types and functions to build, find, get
@@ -32,12 +35,8 @@ values from, and compare nodes
 @docs root
 @docs tombstone
 
-# Update
-@docs updateChildren
-
 -}
 
-import CRDTree.List as List
 import Dict exposing (Dict)
 
 
@@ -51,6 +50,12 @@ type Node a
          , value: a
          }
   | Tombstone { path: List Int }
+
+
+type Error
+  = NotFound
+  | AlreadyApplied
+  | BadTimestamp
 
 
 {-| Build a node
@@ -103,8 +108,22 @@ children n =
 {-| Find a node child matching a timestamp
 -}
 child : Int -> Node a -> Maybe (Node a)
-child ts n =
-  children n |> List.find (timestamp >> ((==) ts))
+child ts node =
+  find (\n -> (timestamp n) == ts) (children node)
+
+
+find : (Node a -> Bool) -> List (Node a) -> Maybe (Node a)
+find pred nodes =
+  case nodes of
+    [] ->
+      Nothing
+
+    n :: ns ->
+      if pred n then
+        Just n
+
+      else
+        find pred ns
 
 
 {-| Return a Node at a path
@@ -151,7 +170,7 @@ timestamp n =
 path : Node a -> List Int
 path n =
   case n of
-    Root _ -> [-1]
+    Root _ -> []
     Node rec -> rec.path
     Tombstone rec -> rec.path
 
@@ -166,10 +185,117 @@ isDeleted n =
     Tombstone _ -> True
 
 
+addAfter : Int -> (Int, a) -> Node a -> Result Error (Node a)
+addAfter prev (ts, val) parent =
+  let
+      node =
+        init val <| (path parent) ++ [ts]
+
+      result =
+        case compare prev 0 of
+          LT ->
+            Err BadTimestamp
+
+          EQ ->
+            insert node [] (children parent)
+
+          GT ->
+            insertAfter prev node [] (children parent)
+  in
+      applyResult parent result
+
+
+insertAfter : Int -> Node a
+                  -> List (Node a)
+                  -> List (Node a)
+                  -> Result Error (List (Node a))
+insertAfter prev node acc nodes =
+  case nodes of
+    [] ->
+      Err NotFound
+
+    n :: rest ->
+      if (timestamp n) == prev then
+        (insert node [] acc)
+          |> Result.map (\acc2 -> acc2 ++ nodes)
+
+      else
+        insertAfter prev node (n :: acc) rest
+
+
+insert : Node a -> List (Node a)
+                -> List (Node a)
+                -> Result Error (List (Node a))
+insert node acc nodes =
+  case nodes of
+    [] ->
+      Ok <| node :: acc
+
+    n :: rest ->
+      case compare (timestamp n) (timestamp node) of
+        LT ->
+          Ok <| (List.reverse nodes) ++ node :: acc
+
+        EQ ->
+          Err AlreadyApplied
+
+        GT ->
+          insert node (n :: acc) rest
+
+
+delete : Int -> Node a -> Result Error (Node a)
+delete ts parent =
+  update ts (path >> tombstone >> Ok) [] (children parent)
+    |> applyResult parent
+
+
+updateParent : Int -> Node a
+                   -> (Node a -> Result Error (Node a))
+                   -> Result Error (Node a)
+updateParent ts parent updateFn =
+  update ts updateFn [] (children parent)
+    |> applyResult parent
+
+
+update : Int -> (Node a -> Result Error (Node a))
+             -> List (Node a)
+             -> List (Node a)
+             -> Result Error (List (Node a))
+update ts fn acc nodes =
+  case nodes of
+    [] ->
+      Err NotFound
+
+    n :: rest ->
+      if ts < 1 then
+        Err BadTimestamp
+
+      else if (timestamp n) == ts then
+        case fn n of
+          Ok node ->
+            if node == n then
+              Err AlreadyApplied
+
+            else
+              Ok <| (List.reverse acc) ++ (node :: rest)
+
+          Err err ->
+            Err err
+
+      else
+        update ts fn (n :: acc) rest
+
+
+applyResult : Node a -> Result Error (List (Node a))
+                     -> Result Error (Node a)
+applyResult parent result =
+  Result.map (\nodes -> replaceChildren nodes parent) result
+
+
 {-| Update a Node's children
 -}
-updateChildren : List (Node a) -> Node a -> Node a
-updateChildren ch node =
+replaceChildren : List (Node a) -> Node a -> Node a
+replaceChildren ch node =
   case node of
     Root record ->
       Root { record | children = ch }
