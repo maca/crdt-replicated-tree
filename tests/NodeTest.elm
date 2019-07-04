@@ -58,7 +58,7 @@ suite = describe "Node"
               ]
 
     , fuzz (list <| Fuzz.intRange 10 100)
-      "addAfter same timestamp with deterministic order" <|
+      "addAfter has deterministic order" <|
         \list ->
           let
               dedup =
@@ -77,10 +77,11 @@ suite = describe "Node"
                 (dedup
                   |> List.sort
                   |> List.map (\i -> init i [i])) ++
-                [init 1 [1]]
+                [ init 1 [1], init 101 [101] ]
           in
           dedup
             |> List.foldl (addF 1) initial
+            |> Result.andThen (addAfter 0 (101, 101))
             |> expectSuccessWithChildren expected
 
     , test "addAfter non existant node fails" <| \_ ->

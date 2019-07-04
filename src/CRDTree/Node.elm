@@ -197,7 +197,7 @@ addAfter prev (ts, val) parent =
             Err BadTimestamp
 
           EQ ->
-            insert node [] (children parent)
+            insertAfter prev node [] (children parent)
 
           GT ->
             insertAfter prev node [] (children parent)
@@ -212,7 +212,13 @@ insertAfter : Int -> Node a
 insertAfter prev node acc nodes =
   case nodes of
     [] ->
-      Err NotFound
+      if prev == 0 then
+        (insert node [] acc)
+          |> Result.map (\acc2 -> acc2 ++ nodes)
+          -- optimize
+
+      else
+        Err NotFound
 
     n :: rest ->
       if (timestamp n) == prev then
