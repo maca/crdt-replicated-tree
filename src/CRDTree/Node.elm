@@ -1,5 +1,6 @@
 module CRDTree.Node exposing
   ( Node
+  , Error(..)
   , value
   , timestamp
   , path
@@ -12,13 +13,13 @@ module CRDTree.Node exposing
   , addAfter
   , delete
   , updateParent
-  , Error(..)
   )
 
 {-| This module implements types and functions to build, find, get
 values from, and compare nodes
 
 @docs Node
+@docs Error
 
 # Properties
 @docs value
@@ -34,6 +35,11 @@ values from, and compare nodes
 @docs init
 @docs root
 @docs tombstone
+
+# Operations
+@docs addAfter
+@docs delete
+@docs updateParent
 
 -}
 
@@ -52,6 +58,7 @@ type Node a
   | Tombstone { path: List Int }
 
 
+{-| Represents an Error updating a node -}
 type Error
   = NotFound
   | AlreadyApplied
@@ -185,6 +192,8 @@ isDeleted n =
     Tombstone _ -> True
 
 
+{-| Adds  after node with timestamp
+-}
 addAfter : Int -> (Int, a) -> Node a -> Result Error (Node a)
 addAfter prev (ts, val) parent =
   let
@@ -249,12 +258,14 @@ insert node acc nodes =
           insert node (n :: acc) rest
 
 
+{-| Delete a node -}
 delete : Int -> Node a -> Result Error (Node a)
 delete ts parent =
   update ts (path >> tombstone >> Ok) [] (children parent)
     |> applyResult parent
 
 
+{-| Update a node with a successful result -}
 updateParent : Int -> Node a
                    -> (Node a -> Result Error (Node a))
                    -> Result Error (Node a)
