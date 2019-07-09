@@ -1,5 +1,7 @@
 # CRDT Replicated Tree
 
+Example app: https://github.com/maca/crdt-text-editor
+
 Conflict-free Replicate Data Types are data structures that can be
 replicated across many network nodes and edited independently, making
 them useful for applications where state has to be syncronized
