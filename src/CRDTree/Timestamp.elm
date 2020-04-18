@@ -1,6 +1,9 @@
 module CRDTree.Timestamp exposing (replicaId)
+
 {-|
+
 @docs replicaId
+
 -}
 
 
@@ -12,4 +15,4 @@ module CRDTree.Timestamp exposing (replicaId)
 -}
 replicaId : Int -> Int
 replicaId timestamp =
-  timestamp // 2 ^ 32
+    timestamp // 2 ^ 32

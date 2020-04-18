@@ -1,24 +1,24 @@
 module CRDTree exposing
-  ( CRDTree
-  , Error(..)
-  , init
-  , add
-  , addAfter
-  , addBranch
-  , delete
-  , batch
-  , apply
-  , operationsSince
-  , lastOperation
-  , id
-  , timestamp
-  , root
-  , get
-  , getValue
-  , cursor
-  , moveCursorUp
-  , lastReplicaTimestamp
-  )
+    ( CRDTree
+    , init
+    , Error(..)
+    , add
+    , addAfter
+    , addBranch
+    , batch
+    , delete
+    , apply
+    , operationsSince
+    , lastOperation
+    , id
+    , timestamp
+    , root
+    , get
+    , getValue
+    , cursor
+    , moveCursorUp
+    , lastReplicaTimestamp
+    )
 
 {-| The local replica state.
 
@@ -37,6 +37,7 @@ The path of a node in the tree is represented as a `List Int`.
 @docs CRDTree
 @docs init
 
+
 # Operations
 
 @docs Error
@@ -49,6 +50,7 @@ The path of a node in the tree is represented as a `List Int`.
 @docs operationsSince
 @docs lastOperation
 
+
 # Tree
 
 @docs id
@@ -59,74 +61,75 @@ The path of a node in the tree is represented as a `List Int`.
 @docs cursor
 @docs moveCursorUp
 
+
 # Replicas
 
 @docs lastReplicaTimestamp
 
 -}
 
+import CRDTree.Node as Node exposing (Error(..), Node(..))
+import CRDTree.Operation as Operation exposing (Operation(..))
+import CRDTree.Timestamp as Timestamp
 import Dict exposing (Dict, keys)
 import List exposing (head)
 import Result
 
-import CRDTree.Node as Node exposing (Node(..), Error(..))
-import CRDTree.Operation as Operation exposing (Operation(..))
-import CRDTree.Timestamp as Timestamp
-
 
 {-| Failure to apply an operation
 -}
-type Error a =
-  Error (Operation a)
+type Error a
+    = Error (Operation a)
 
 
 {-| A Replicated Tree, see [int](#init).
 -}
-type CRDTree a =
-  CRDTree
-    { root : Node a
-    , timestamp: Int
-    , cursor: List Int
-    , operations: List (Operation a)
-    , replicas: Dict Int Int
-    , lastOperation: Operation a
-    }
+type CRDTree a
+    = CRDTree
+        { root : Node a
+        , timestamp : Int
+        , cursor : List Int
+        , operations : List (Operation a)
+        , replicas : Dict Int Int
+        , lastOperation : Operation a
+        }
 
 
 type alias UpdateFun a =
-  Int -> Node a -> Result Node.Error (Node a)
+    Int -> Node a -> Result Node.Error (Node a)
 
 
 {-| Build a CRDTree providing the replica id.
 
     tree : CRDTree String
-    tree = init 1
+    tree =
+        init 1
 
 -}
 init : Int -> CRDTree a
 init replicaId =
-  CRDTree
-    { operations = []
-    , cursor = [0]
-    , replicas = Dict.empty
-    , root = Node.root
-    , timestamp = (replicaId * 2 ^ 32)
-    , lastOperation = Batch []
-    }
+    CRDTree
+        { operations = []
+        , cursor = [ 0 ]
+        , replicas = Dict.empty
+        , root = Node.root
+        , timestamp = replicaId * 2 ^ 32
+        , lastOperation = Batch []
+        }
 
 
 {-| Add a node after tree cursor, the cursor is set
 at the added node path.
 
     init 1
-      |> add "a"
-      |> Result.andThen (add "b")
-      |> Result.andThen (add "c")
+        |> add "a"
+        |> Result.andThen (add "b")
+        |> Result.andThen (add "c")
 
 -}
 add : a -> CRDTree a -> Result (Error a) (CRDTree a)
-add value (CRDTree record as tree) =
-  addAfter record.cursor value tree
+add value ((CRDTree record) as tree) =
+    addAfter record.cursor value tree
 
 
 {-| Add a node after another node at given path,
@@ -140,46 +143,50 @@ the cursor is set at the added node path.
 
 -}
 addAfter : List Int -> a -> CRDTree a -> Result (Error a) (CRDTree a)
-addAfter path value (CRDTree record as tree) =
-  applyLocal (Add (nextTimestamp tree) path value) tree
+addAfter path value ((CRDTree record) as tree) =
+    applyLocal (Add (nextTimestamp tree) path value) tree
 
 
 {-| Add a branch after tree cursor, subsequent
 additions are added to the branch.
 
     init 1
-      |> addBranch "a"
-      |> Result.andThen (add "a,b")
-      |> Result.andThen (add "a,c")
+        |> addBranch "a"
+        |> Result.andThen (add "a,b")
+        |> Result.andThen (add "a,c")
+
 -}
 addBranch : a -> CRDTree a -> Result (Error a) (CRDTree a)
 addBranch value tree =
-  add value tree |> Result.map branchCursor
+    add value tree |> Result.map branchCursor
 
 
 {-| Mark a node at a path as deleted.
 
     init 1
-      |> batch [ add "a", add "b" ]
-      |> Result.andThen (\tree -> delete (cursor tree) tree)
+        |> batch [ add "a", add "b" ]
+        |> Result.andThen (\tree -> delete (cursor tree) tree)
 
 Nodes are not actually deleted but marked and their children
 discarded.
+
 -}
 delete : List Int -> CRDTree a -> Result (Error a) (CRDTree a)
-delete path (CRDTree record as tree) =
-  applyLocal (Delete path) tree
+delete path ((CRDTree record) as tree) =
+    applyLocal (Delete path) tree
 
 
 {-| Apply a list of operations
 
     init 1 |> batch [ add "a", add "b", add "c" ]
+
 -}
-batch : List (CRDTree a -> Result (Error a) (CRDTree a))
-      -> CRDTree a
-      -> Result (Error a) (CRDTree a)
+batch :
+    List (CRDTree a -> Result (Error a) (CRDTree a))
+    -> CRDTree a
+    -> Result (Error a) (CRDTree a)
 batch funs tree =
-  applyBatch funs tree
+    applyBatch funs tree
 
 
 {-| Apply a remote operation
@@ -214,144 +221,159 @@ batch funs tree =
 -}
 apply : Operation a -> CRDTree a -> Result (Error a) (CRDTree a)
 apply operation tree =
-  applyLocal operation tree
-    |> Result.map (\(CRDTree record) ->
-        CRDTree { record | cursor = cursor tree })
+    applyLocal operation tree
+        |> Result.map
+            (\(CRDTree record) ->
+                CRDTree { record | cursor = cursor tree }
+            )
 
 
 {-| Apply a local operation, the cursor for the `CRDTree` will
 change
 -}
 applyLocal : Operation a -> CRDTree a -> Result (Error a) (CRDTree a)
-applyLocal operation (CRDTree record as tree) =
-  case operation of
-    Add ts path value ->
-      let
-          fun prev parent =
-            Node.addAfter prev (ts, value) parent
-      in
-          updateBranch fun path record.root
-            |> mapResult operation path tree
-            |> Result.map (incrementTimestamp ts)
+applyLocal operation ((CRDTree record) as tree) =
+    case operation of
+        Add ts path value ->
+            let
+                fun prev parent =
+                    Node.addAfter prev ( ts, value ) parent
+            in
+            updateBranch fun path record.root
+                |> mapResult operation path tree
+                |> Result.map (incrementTimestamp ts)
 
-    Delete path ->
-        updateBranch (\ts parent -> Node.delete ts parent)
-          path record.root
-            |> mapResult operation path tree
+        Delete path ->
+            updateBranch (\ts parent -> Node.delete ts parent)
+                path
+                record.root
+                |> mapResult operation path tree
 
-    Batch ops ->
-      applyBatch (List.map apply ops) tree
+        Batch ops ->
+            applyBatch (List.map apply ops) tree
 
 
 mapResult operation path (CRDTree record) result =
-  let
-      opTimestamp =
-        Operation.timestamp operation |> Maybe.withDefault 0
-
-  in
-      case result of
+    let
+        opTimestamp =
+            Operation.timestamp operation |> Maybe.withDefault 0
+    in
+    case result of
         Ok node ->
-          CRDTree { record | root = node }
-            |> updateReplicas opTimestamp
-            |> appendOperation operation
-            |> updateCursor opTimestamp path
-            |> Ok
+            CRDTree { record | root = node }
+                |> updateReplicas opTimestamp
+                |> appendOperation operation
+                |> updateCursor opTimestamp path
+                |> Ok
 
         Err AlreadyApplied ->
-          CRDTree { record | lastOperation = Batch [] }
-            |> Ok
+            CRDTree { record | lastOperation = Batch [] }
+                |> Ok
 
         Err exp ->
-          Error operation |> Err
+            Error operation |> Err
 
 
-applyBatch funcs (CRDTree record as tree) =
-  batchFold tree funcs
-    (Ok <| CRDTree { record | lastOperation = Batch [] })
+applyBatch funcs ((CRDTree record) as tree) =
+    batchFold tree
+        funcs
+        (Ok <| CRDTree { record | lastOperation = Batch [] })
 
 
-batchFold : CRDTree a -> List (CRDTree a -> Result (Error a) (CRDTree a))
-                      -> Result (Error a) (CRDTree a)
-                      -> Result (Error a) (CRDTree a)
+batchFold :
+    CRDTree a
+    -> List (CRDTree a -> Result (Error a) (CRDTree a))
+    -> Result (Error a) (CRDTree a)
+    -> Result (Error a) (CRDTree a)
 batchFold tree opFuns result =
-  case opFuns of
-    [] ->
-      result
+    case opFuns of
+        [] ->
+            result
 
-    f :: fs ->
-      result
-        |> Result.andThen (f >> Result.map2 mergeOperations result)
-        |> batchFold tree fs
+        f :: fs ->
+            result
+                |> Result.andThen (f >> Result.map2 mergeOperations result)
+                |> batchFold tree fs
 
 
-updateBranch : UpdateFun a -> List Int
-                           -> Node a
-                           -> Result Node.Error (Node a)
+updateBranch :
+    UpdateFun a
+    -> List Int
+    -> Node a
+    -> Result Node.Error (Node a)
 updateBranch fun path parent =
-  if Node.isDeleted parent then
-    Err AlreadyApplied
-  else
-    case path of
-      [] ->
-        Err NotFound
+    if Node.isDeleted parent then
+        Err AlreadyApplied
 
-      ts :: [] ->
-        fun ts parent
+    else
+        case path of
+            [] ->
+                Err NotFound
 
-      ts :: tss ->
-        Node.updateParent ts parent (updateBranch fun tss)
+            ts :: [] ->
+                fun ts parent
+
+            ts :: tss ->
+                Node.updateParent ts parent (updateBranch fun tss)
 
 
 mergeOperations : CRDTree a -> CRDTree a -> CRDTree a
 mergeOperations (CRDTree record1) (CRDTree record2) =
-  let
-      operations1 = record1.lastOperation
-      operations2 = record2.lastOperation
-      operation   = Operation.merge operations1 operations2
-  in
+    let
+        operations1 =
+            record1.lastOperation
+
+        operations2 =
+            record2.lastOperation
+
+        operation =
+            Operation.merge operations1 operations2
+    in
     CRDTree { record2 | lastOperation = operation }
 
 
 incrementTimestamp : Int -> CRDTree a -> CRDTree a
-incrementTimestamp ts (CRDTree record as tree) =
-  if (Timestamp.replicaId ts) == (id tree) then
-    CRDTree { record | timestamp = nextTimestamp tree }
-  else
-    tree
+incrementTimestamp ts ((CRDTree record) as tree) =
+    if Timestamp.replicaId ts == id tree then
+        CRDTree { record | timestamp = nextTimestamp tree }
+
+    else
+        tree
 
 
 branchCursor : CRDTree a -> CRDTree a
 branchCursor (CRDTree record) =
-  CRDTree { record | cursor = record.cursor ++ [0] }
+    CRDTree { record | cursor = record.cursor ++ [ 0 ] }
 
 
 updateCursor : Int -> List Int -> CRDTree a -> CRDTree a
 updateCursor opTimestamp path (CRDTree record) =
-  CRDTree { record | cursor = buildPath opTimestamp path }
+    CRDTree { record | cursor = buildPath opTimestamp path }
 
 
 appendOperation : Operation a -> CRDTree a -> CRDTree a
 appendOperation operation (CRDTree record) =
-  CRDTree
-    { record | operations = operation :: record.operations
-    , lastOperation = operation
-    }
+    CRDTree
+        { record
+            | operations = operation :: record.operations
+            , lastOperation = operation
+        }
 
 
 updateReplicas : Int -> CRDTree a -> CRDTree a
-updateReplicas ts (CRDTree record as tree) =
-  let
-      replicas =
-        Dict.insert (Timestamp.replicaId ts) ts record.replicas
-  in
-      CRDTree { record | replicas = replicas }
+updateReplicas ts ((CRDTree record) as tree) =
+    let
+        replicas =
+            Dict.insert (Timestamp.replicaId ts) ts record.replicas
+    in
+    CRDTree { record | replicas = replicas }
 
 
 {-| Get the next timestamp
 -}
 nextTimestamp : CRDTree a -> Int
 nextTimestamp (CRDTree record) =
-  record.timestamp + 1
+    record.timestamp + 1
 
 
 {-| Return the last successfully applied operation or batch
@@ -374,21 +396,21 @@ or if operation was not succesfull an empty batch.
 -}
 lastOperation : CRDTree a -> Operation a
 lastOperation (CRDTree record) =
-  record.lastOperation
+    record.lastOperation
 
 
 {-| The local replica id
 -}
 id : CRDTree a -> Int
 id tree =
-  timestamp tree |> Timestamp.replicaId
+    timestamp tree |> Timestamp.replicaId
 
 
 {-| The local replica timestamp
 -}
 timestamp : CRDTree a -> Int
 timestamp (CRDTree record) =
-  record.timestamp
+    record.timestamp
 
 
 {-| Return a batch of operations after a known timestamp
@@ -411,21 +433,22 @@ timestamp (CRDTree record) =
 -}
 operationsSince : Int -> CRDTree a -> Operation a
 operationsSince initalTimestamp (CRDTree record) =
-  case initalTimestamp of
-    0 ->
-      record.operations |> List.reverse
-        |> Operation.fromList
+    case initalTimestamp of
+        0 ->
+            record.operations
+                |> List.reverse
+                |> Operation.fromList
 
-    _ ->
-      Operation.since initalTimestamp record.operations
-        |> Operation.fromList
+        _ ->
+            Operation.since initalTimestamp record.operations
+                |> Operation.fromList
 
 
 {-| Root node of the CRDTree
 -}
 root : CRDTree a -> Node a
 root (CRDTree record) =
-  record.root
+    record.root
 
 
 {-| Get a value at path
@@ -447,7 +470,7 @@ root (CRDTree record) =
 -}
 get : List Int -> CRDTree a -> Maybe (Node a)
 get path (CRDTree record) =
-  Node.descendant path record.root
+    Node.descendant path record.root
 
 
 {-| Get a value at path
@@ -469,7 +492,7 @@ get path (CRDTree record) =
 -}
 getValue : List Int -> CRDTree a -> Maybe a
 getValue path tree =
-  get path tree |> Maybe.andThen Node.value
+    get path tree |> Maybe.andThen Node.value
 
 
 {-| Return the tree cursor
@@ -500,7 +523,7 @@ getValue path tree =
 -}
 cursor : CRDTree a -> List Int
 cursor (CRDTree record) =
-  record.cursor
+    record.cursor
 
 
 {-| Move the tree cursor one level up
@@ -519,28 +542,28 @@ cursor (CRDTree record) =
 
 -}
 moveCursorUp : CRDTree a -> CRDTree a
-moveCursorUp (CRDTree record as tree) =
-  let
-      newCursor =
-        List.head (cursor tree)
-        |> Maybe.withDefault 0
-        |> List.singleton
-  in
-      CRDTree { record | cursor = newCursor }
+moveCursorUp ((CRDTree record) as tree) =
+    let
+        newCursor =
+            List.head (cursor tree)
+                |> Maybe.withDefault 0
+                |> List.singleton
+    in
+    CRDTree { record | cursor = newCursor }
 
 
 buildPath : Int -> List Int -> List Int
 buildPath opTimestamp path =
-  case List.reverse path of
-    [] ->
-      [ opTimestamp ]
+    case List.reverse path of
+        [] ->
+            [ opTimestamp ]
 
-    _ :: rest ->
-      List.reverse <| opTimestamp :: rest
+        _ :: rest ->
+            List.reverse <| opTimestamp :: rest
 
 
 {-| Last know timestamp for a replica
 -}
-lastReplicaTimestamp : Int -> CRDTree a-> Int
-lastReplicaTimestamp replicaId (CRDTree {replicas}) =
-  Dict.get replicaId replicas |> Maybe.withDefault 0
+lastReplicaTimestamp : Int -> CRDTree a -> Int
+lastReplicaTimestamp replicaId (CRDTree { replicas }) =
+    Dict.get replicaId replicas |> Maybe.withDefault 0
