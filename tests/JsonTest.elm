@@ -12,7 +12,7 @@ import Test exposing (..)
 import List exposing (map, reverse)
 
 import CRDTree.Operation exposing (Operation(..))
-import CRDTree.ReplicaId as ReplicaId exposing (ReplicaId)
+
 
 import CRDTree.Json exposing
   ( operationEncoder
@@ -25,8 +25,7 @@ suite = describe "encode/decode"
   [ describe "operations"
     [ test "Add" <| \_ ->
       let
-          operation =
-            Add (ReplicaId.fromInt 1) 3 [1, 2] "a"
+          operation = Add 3 [1, 2] "a"
 
           value =
             operationEncoder Encode.string operation
@@ -38,11 +37,7 @@ suite = describe "encode/decode"
 
     , test "Delete" <| \_ ->
       let
-          replicaId =
-            ReplicaId.fromInt 1
-
-          operation =
-            Delete replicaId [1, 2]
+          operation = Delete [1, 2]
 
           value =
             operationEncoder Encode.string operation
@@ -54,14 +49,11 @@ suite = describe "encode/decode"
 
     , test "Batch" <| \_ ->
       let
-          replicaId =
-            ReplicaId.fromInt 1
-
           operation =
             Batch
-              [ Add replicaId 3 [1, 2] "a"
-              , Add replicaId 4 [1, 3] "b"
-              , Delete replicaId [1, 2]
+              [ Add 3 [1, 2] "a"
+              , Add 4 [1, 3] "b"
+              , Delete [1, 2]
               ]
 
           value =
@@ -82,5 +74,3 @@ expectResult expected result =
 mapResult fun result =
   Result.map fun result
     |> Result.withDefault (Expect.fail "failed")
-
-

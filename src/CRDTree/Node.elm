@@ -321,5 +321,3 @@ replaceChildren ch node =
       Node { record | children = ch }
 
     Tombstone _ -> node
-
-

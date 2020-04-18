@@ -20,7 +20,6 @@ import Json.Encode as Encode exposing
   , list
   )
 import CRDTree.Operation exposing (Operation(..))
-import CRDTree.ReplicaId as ReplicaId exposing (ReplicaId)
 
 import Dict exposing (Dict)
 
@@ -31,19 +30,17 @@ anything and returns a value
 operationEncoder : (a -> Value) -> Operation a -> Value
 operationEncoder valueEncoder operation =
   case operation of
-    Add replicaId ts path value ->
+    Add ts path value ->
       Encode.object
         [ ( "op", string "add" )
         , ( "path", (list int path) )
-        , ( "rid", int <| ReplicaId.toInt replicaId )
         , ( "ts", int ts )
         , ( "val", valueEncoder value )
         ]
 
-    Delete replicaId path ->
+    Delete path ->
       Encode.object
         [ ( "op", string "del" )
-        , ( "rid", int <| ReplicaId.toInt replicaId )
         , ( "path", (list int path) )
         ]
 
@@ -66,15 +63,13 @@ operationDecoderHelp : Decoder a -> String -> Decoder (Operation a)
 operationDecoderHelp valueDecoder operationType =
   case operationType of
     "add" ->
-      Decode.map4 Add
-        (field "rid" (Decode.int |> Decode.map ReplicaId.fromInt))
+      Decode.map3 Add
         (field "ts" Decode.int)
         (field "path" <| Decode.list Decode.int)
         (field "val" valueDecoder)
 
     "del" ->
-      Decode.map2 Delete
-        (field "rid" (Decode.int |> Decode.map ReplicaId.fromInt))
+      Decode.map Delete
         (field "path" <| Decode.list Decode.int)
 
     "batch" ->
@@ -83,4 +78,3 @@ operationDecoderHelp valueDecoder operationType =
 
     _ ->
       Decode.succeed <| Batch []
-

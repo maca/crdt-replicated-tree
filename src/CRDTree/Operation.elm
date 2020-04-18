@@ -30,14 +30,14 @@ module CRDTree.Operation exposing
 -}
 
 import CRDTree.Node as Node
-import CRDTree.ReplicaId as ReplicaId exposing (ReplicaId)
+import CRDTree.Timestamp as Timestamp
 
 
 {-| Represents an CRDTree operation
 -}
 type Operation a
-  = Add ReplicaId Int (List Int) a
-  | Delete ReplicaId (List Int)
+  = Add Int (List Int) a
+  | Delete (List Int)
   | Batch (List (Operation a))
 
 
@@ -60,10 +60,10 @@ sinceFold ts operations acc =
         Batch _ ->
           sinceFold ts os acc
 
-        Delete _ _ ->
+        Delete _ ->
           sinceFold ts os (o :: acc)
 
-        Add _ operationTimestamp _ _ ->
+        Add operationTimestamp _ _ ->
           if ts == operationTimestamp then
             o :: acc
 
@@ -78,8 +78,8 @@ Operation to List of Operations
 toList : Operation a -> List (Operation a)
 toList operation =
   case operation of
-    Add _ _ _ _ -> [ operation ]
-    Delete _ _ -> [ operation ]
+    Add _ _ _ -> [ operation ]
+    Delete _ -> [ operation ]
     Batch list -> list
 
 
@@ -103,10 +103,7 @@ merge a b =
 -}
 replicaId : Operation a -> Maybe Int
 replicaId operation =
-  case operation of
-    Add id _ _ _ -> Just (ReplicaId.toInt id)
-    Delete id _ -> Just (ReplicaId.toInt id)
-    Batch list -> Nothing
+  timestamp operation |> Maybe.map Timestamp.replicaId
 
 
 {-| Timestamp of the operation
@@ -114,10 +111,10 @@ replicaId operation =
 timestamp : Operation a -> Maybe Int
 timestamp operation =
   case operation of
-    Add _ ts _ _ ->
+    Add ts _ _ ->
       Just ts
 
-    Delete _ p ->
+    Delete p ->
       List.reverse p |> List.head
 
     Batch _ ->
@@ -129,6 +126,6 @@ timestamp operation =
 path : Operation a -> Maybe (List Int)
 path operation =
   case operation of
-    Add _ _ p _ -> Just p
-    Delete _ p -> Just p
+    Add _ p _ -> Just p
+    Delete p -> Just p
     Batch _ -> Nothing

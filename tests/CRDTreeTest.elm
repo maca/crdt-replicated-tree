@@ -23,7 +23,6 @@ import CRDTree exposing
   )
 import CRDTree.Node as Node exposing (Node, tombstone)
 import CRDTree.Operation as Operation exposing (Operation(..))
-import CRDTree.ReplicaId as ReplicaId exposing (ReplicaId)
 
 
 suite : Test
@@ -70,16 +69,10 @@ suite = describe "CRDTree"
 
 testAdd description =
   let
-      replicaId = ReplicaId.fromInt 0
-
-      tree =
-        CRDTree.init
-          { id = ReplicaId.toInt replicaId
-          , maxReplicas = 1
-          }
+      tree = CRDTree.init 0
 
       operation =
-        Add replicaId 1 [0] "a"
+        Add 1 [0] "a"
 
       result =
         add "a" tree
@@ -94,7 +87,7 @@ testAdd description =
         , test "apply Add sets tree operations" <| \_ ->
           let
               operations =
-                  [ Add replicaId 1 [0] "a" ]
+                  [ Add 1 [0] "a" ]
           in
               expectOperations operations result
 
@@ -105,16 +98,10 @@ testAdd description =
 
 testAddAfter description =
   let
-      replicaId = ReplicaId.fromInt 0
-
-      tree =
-        CRDTree.init
-          { id = ReplicaId.toInt replicaId
-          , maxReplicas = 1
-          }
+      tree = CRDTree.init 0
 
       operation =
-        Add replicaId 3 [1] "c"
+        Add 3 [1] "c"
 
       result =
         add "a" tree
@@ -137,9 +124,9 @@ testAddAfter description =
         , test "addAfter sets tree operations" <| \_ ->
           let
               operations =
-                  [ Add replicaId 1 [0] "a"
-                  , Add replicaId 2 [1] "b"
-                  , Add replicaId 3 [1] "c"
+                  [ Add 1 [0] "a"
+                  , Add 2 [1] "b"
+                  , Add 3 [1] "c"
                   ]
           in
               expectOperations operations result
@@ -152,13 +139,7 @@ testAddAfter description =
 
 testBatch description =
   let
-      replicaId = ReplicaId.fromInt 0
-
-      tree =
-        CRDTree.init
-          { id = ReplicaId.toInt replicaId
-          , maxReplicas = 1
-          }
+      tree =  CRDTree.init 0
 
       result =
         batch [add "a", add "b"] tree
@@ -176,8 +157,8 @@ testBatch description =
         , test "apply Batch sets tree operations" <| \_ ->
           let
               operations =
-                [ Add replicaId 1 [0] "a"
-                , Add replicaId 2 [1] "b"
+                [ Add 1 [0] "a"
+                , Add 2 [1] "b"
                 ]
           in
               expectOperations operations result
@@ -185,8 +166,8 @@ testBatch description =
         , test "sets last operation" <| \_ ->
           let
               operation = Batch
-                [ Add replicaId 1 [0] "a"
-                , Add replicaId 2 [1] "b"
+                [ Add 1 [0] "a"
+                , Add 2 [1] "b"
                 ]
           in
               expectLastOperation operation result
@@ -195,13 +176,7 @@ testBatch description =
 
 testAddBranch description =
   let
-      replicaId = ReplicaId.fromInt 0
-
-      tree =
-        CRDTree.init
-          { id = ReplicaId.toInt replicaId
-          , maxReplicas = 1
-          }
+      tree = CRDTree.init 0
 
       result =
         batch [addBranch "a", add "b"] tree
@@ -216,8 +191,8 @@ testAddBranch description =
         , test "apply Batch sets tree operations" <| \_ ->
           let
               operations =
-                [ Add replicaId 1 [0] "a"
-                , Add replicaId 2 [1, 0] "b"
+                [ Add 1 [0] "a"
+                , Add 2 [1, 0] "b"
                 ]
           in
               expectOperations operations result
@@ -225,8 +200,8 @@ testAddBranch description =
         , test "sets last operation" <| \_ ->
           let
               operation = Batch
-                [ Add replicaId 1 [0] "a"
-                , Add replicaId 2 [1, 0] "b"
+                [ Add 1 [0] "a"
+                , Add 2 [1, 0] "b"
                 ]
           in
               expectLastOperation operation result
@@ -235,18 +210,12 @@ testAddBranch description =
 
 testAddToDeletedBranch description =
   let
-      replicaId = ReplicaId.fromInt 0
-
-      tree =
-        CRDTree.init
-          { id = ReplicaId.toInt replicaId
-          , maxReplicas = 1
-          }
+      tree = CRDTree.init 0
 
       batch = Batch
-        [ Add replicaId 1 [0] "a"
-        , Delete replicaId [1]
-        , Add replicaId 2 [1, 0] "b"
+        [ Add 1 [0] "a"
+        , Delete [1]
+        , Add 2 [1, 0] "b"
         ]
 
       result =
@@ -262,8 +231,8 @@ testAddToDeletedBranch description =
         , test "apply Batch sets tree operations" <| \_ ->
           let
               operations =
-                [ Add replicaId 1 [0] "a"
-                , Delete replicaId [1]
+                [ Add 1 [0] "a"
+                , Delete [1]
                 ]
           in
               expectOperations operations result
@@ -271,8 +240,8 @@ testAddToDeletedBranch description =
         , test "sets last operation" <| \_ ->
           let
               operation = Batch
-                [ Add replicaId 1 [0] "a"
-                , Delete replicaId [1]
+                [ Add 1 [0] "a"
+                , Delete [1]
                 ]
           in
               expectLastOperation operation result
@@ -281,18 +250,11 @@ testAddToDeletedBranch description =
 
 testApplyBatch description =
   let
-      replicaId =
-        ReplicaId.fromInt 0
-
-      tree =
-        CRDTree.init
-          { id = ReplicaId.toInt replicaId
-          , maxReplicas = 1
-          }
+      tree = CRDTree.init 0
 
       batch = Batch
-        [ Add replicaId 1 [0] "a"
-        , Add replicaId 2 [1] "b"
+        [ Add 1 [0] "a"
+        , Add 2 [1] "b"
         ]
 
       result =
@@ -311,8 +273,8 @@ testApplyBatch description =
         , test "apply Batch sets tree operations" <| \_ ->
           let
               operations =
-                [ Add replicaId 1 [0] "a"
-                , Add replicaId 2 [1] "b"
+                [ Add 1 [0] "a"
+                , Add 2 [1] "b"
                 ]
           in
               expectOperations operations result
@@ -324,19 +286,13 @@ testApplyBatch description =
 
 testAddIsIdempotent description =
   let
-      replicaId = ReplicaId.fromInt 0
-
-      tree =
-        CRDTree.init
-          { id = ReplicaId.toInt replicaId
-          , maxReplicas = 1
-          }
+      tree = CRDTree.init 0
 
       batch = Batch
-        [ Add replicaId 1 [0] "a"
-        , Add replicaId 1 [0] "a"
-        , Add replicaId 1 [0] "a"
-        , Add replicaId 1 [0] "a"
+        [ Add 1 [0] "a"
+        , Add 1 [0] "a"
+        , Add 1 [0] "a"
+        , Add 1 [0] "a"
         ]
 
       result =
@@ -353,14 +309,14 @@ testAddIsIdempotent description =
         , test "apply Add multiple times sets tree operations" <| \_ ->
           let
               operations =
-                [ Add replicaId 1 [0] "a" ]
+                [ Add 1 [0] "a" ]
           in
               expectOperations operations result
 
         , test "sets last operation" <| \_ ->
           let
               operation = Batch
-                [ Add replicaId 1 [0] "a" ]
+                [ Add 1 [0] "a" ]
           in
               expectLastOperation operation result
         ]
@@ -368,18 +324,12 @@ testAddIsIdempotent description =
 
 testInsertionBetweenNodes _ =
   let
-      replicaId = ReplicaId.fromInt 0
-
-      tree =
-        CRDTree.init
-          { id = ReplicaId.toInt replicaId
-          , maxReplicas = 1
-          }
+      tree = CRDTree.init 0
 
       batch = Batch
-        [ Add replicaId 1 [0] "a"
-        , Add replicaId 2 [1] "c"
-        , Add replicaId 3 [1] "b"
+        [ Add 1 [0] "a"
+        , Add 2 [1] "c"
+        , Add 3 [1] "b"
         ]
 
       result =
@@ -401,9 +351,9 @@ testInsertionBetweenNodes _ =
         , test "apply Add insert sets tree operations" <| \_ ->
           let
               operations =
-                  [ Add replicaId 1 [0] "a"
-                  , Add replicaId 2 [1] "c"
-                  , Add replicaId 3 [1] "b"
+                  [ Add 1 [0] "a"
+                  , Add 2 [1] "c"
+                  , Add 3 [1] "b"
                   ]
           in
               expectOperations operations result
@@ -415,18 +365,12 @@ testInsertionBetweenNodes _ =
 
 testAddLeaf description =
   let
-      replicaId = ReplicaId.fromInt 0
-
-      tree =
-        CRDTree.init
-          { id = ReplicaId.toInt replicaId
-          , maxReplicas = 1
-          }
+      tree = CRDTree.init 0
 
       batch = Batch
-        [ Add replicaId 1 [0] "a"
-        , Add replicaId 2 [1, 0] "b"
-        , Add replicaId 3 [1, 2] "c"
+        [ Add 1 [0] "a"
+        , Add 2 [1, 0] "b"
+        , Add 3 [1, 2] "c"
         ]
 
       result =
@@ -445,9 +389,9 @@ testAddLeaf description =
         , test "apply Add leaf sets tree operations" <| \_ ->
           let
               operations =
-                  [ Add replicaId 1 [0] "a"
-                  , Add replicaId 2 [1, 0] "b"
-                  , Add replicaId 3 [1, 2] "c"
+                  [ Add 1 [0] "a"
+                  , Add 2 [1, 0] "b"
+                  , Add 3 [1, 2] "c"
                   ]
           in
               expectOperations operations result
@@ -460,17 +404,11 @@ testAddLeaf description =
 testBatchAtomicity description =
   test description <| \_ ->
     let
-        replicaId = ReplicaId.fromInt 0
-
-        tree =
-          CRDTree.init
-            { id = ReplicaId.toInt replicaId
-            , maxReplicas = 1
-            }
+        tree = CRDTree.init 0
 
         batch = Batch
-          [ Add replicaId 1 [0] "a"
-          , Add replicaId 2 [9] "b"
+          [ Add 1 [0] "a"
+          , Add 2 [9] "b"
           ]
 
         result =
@@ -481,17 +419,11 @@ testBatchAtomicity description =
 
 testDelete description =
   let
-      replicaId = ReplicaId.fromInt 0
-
-      tree =
-        CRDTree.init
-          { id = ReplicaId.toInt replicaId
-          , maxReplicas = 1
-          }
+      tree = CRDTree.init 0
 
       batch = Batch
-        [ Add replicaId 1 [0] "a"
-        , Delete replicaId [1]
+        [ Add 1 [0] "a"
+        , Delete [1]
         ]
 
       result =
@@ -511,21 +443,15 @@ testDelete description =
 
 testDeleteIsIdempotent description =
   let
-      replicaId = ReplicaId.fromInt 0
-
-      tree =
-        CRDTree.init
-          { id = ReplicaId.toInt replicaId
-          , maxReplicas = 1
-          }
+      tree = CRDTree.init 0
 
       batch = Batch
-        [ Add replicaId 1 [0] "a"
-        , Delete replicaId [1]
-        , Delete replicaId [1]
-        , Delete replicaId [1]
-        , Delete replicaId [1]
-        , Delete replicaId [1]
+        [ Add 1 [0] "a"
+        , Delete [1]
+        , Delete [1]
+        , Delete [1]
+        , Delete [1]
+        , Delete [1]
         ]
 
       result =
@@ -542,8 +468,8 @@ testDeleteIsIdempotent description =
         , test "apply Add multiple times sets tree operations" <| \_ ->
           let
               operations =
-                [ Add replicaId 1 [0] "a"
-                , Delete replicaId [1]
+                [ Add 1 [0] "a"
+                , Delete [1]
                 ]
           in
               expectOperations operations result
@@ -551,8 +477,8 @@ testDeleteIsIdempotent description =
         , test "sets last operation" <| \_ ->
           let
               operation = Batch
-                [ Add replicaId 1 [0] "a"
-                , Delete replicaId [1]
+                [ Add 1 [0] "a"
+                , Delete [1]
                 ]
           in
               expectLastOperation operation result
@@ -564,41 +490,29 @@ testTimestamps description =
         batch [add "a", add "b", add "c"]
   in
       describe description
-        [ test "timestamp is multiple of replica id 1" <| \_ ->
+        [ test "timestamp starts with replica 0 offset" <| \_ ->
           let
-              replicaId = ReplicaId.fromInt 0
-
-              tree =
-                CRDTree.init
-                { id = ReplicaId.toInt replicaId
-                , maxReplicas = 2
-                }
-
+              tree = CRDTree.init 0
               result = batchFun tree
           in
               expectOperations
-                [ Add replicaId 2 [0] "a"
-                , Add replicaId 4 [2] "b"
-                , Add replicaId 6 [4] "c"
+                [ Add 1 [0] "a"
+                , Add 2 [1] "b"
+                , Add 3 [2] "c"
                 ]
                 result
 
-        , test "timestamp is multiple of replica id 2" <| \_ ->
+        , test "timestamp starts with replica 1 offset" <| \_ ->
           let
-              replicaId = ReplicaId.fromInt 1
-
-              tree =
-                CRDTree.init
-                { id = ReplicaId.toInt replicaId
-                , maxReplicas = 2
-                }
-
+              id = 1
+              offset = id * 2 ^ 32
+              tree = CRDTree.init id
               result = batchFun tree
           in
               expectOperations
-                [ Add replicaId 1 [0] "a"
-                , Add replicaId 3 [1] "b"
-                , Add replicaId 5 [3] "c"
+                [ Add (offset + 1) [0] "a"
+                , Add (offset + 2) [(offset + 1)] "b"
+                , Add (offset + 3) [(offset + 2)] "c"
                 ]
                 result
         ]
@@ -606,24 +520,17 @@ testTimestamps description =
 
 testOperationsSince description =
   let
-      replicaId =
-        ReplicaId.fromInt 0
-
-      tree2 =
-        CRDTree.init
-          { id = ReplicaId.toInt replicaId
-          , maxReplicas = 1
-          }
+      tree2 = CRDTree.init 0
 
       batch = Batch
-        [ Add replicaId 1 [0] "a"
-        , Add replicaId 2 [1] "b"
-        , Add replicaId 3 [2] "c"
-        , Add replicaId 4 [3] "d"
-        , Delete replicaId [3]
+        [ Add 1 [0] "a"
+        , Add 2 [1] "b"
+        , Add 3 [2] "c"
+        , Add 4 [3] "d"
+        , Delete [3]
         , Batch []
-        , Add replicaId 5 [4] "e"
-        , Add replicaId 6 [5] "f"
+        , Add 5 [4] "e"
+        , Add 6 [5] "f"
         ]
 
       tree =
@@ -633,13 +540,13 @@ testOperationsSince description =
         [ test "operations since beginning" <| \_ ->
           let
               operations =
-                [ Add replicaId 1 [0] "a"
-                , Add replicaId 2 [1] "b"
-                , Add replicaId 3 [2] "c"
-                , Add replicaId 4 [3] "d"
-                , Delete replicaId [3]
-                , Add replicaId 5 [4] "e"
-                , Add replicaId 6 [5] "f"
+                [ Add 1 [0] "a"
+                , Add 2 [1] "b"
+                , Add 3 [2] "c"
+                , Add 4 [3] "d"
+                , Delete [3]
+                , Add 5 [4] "e"
+                , Add 6 [5] "f"
                 ]
           in
               Expect.equal operations
@@ -649,12 +556,12 @@ testOperationsSince description =
         , test "operations since 2" <| \_ ->
           let
               operations =
-                [ Add replicaId 2 [1] "b"
-                , Add replicaId 3 [2] "c"
-                , Add replicaId 4 [3] "d"
-                , Delete replicaId [3]
-                , Add replicaId 5 [4] "e"
-                , Add replicaId 6 [5] "f"
+                [ Add 2 [1] "b"
+                , Add 3 [2] "c"
+                , Add 4 [3] "d"
+                , Delete [3]
+                , Add 5 [4] "e"
+                , Add 6 [5] "f"
                 ]
           in
               Expect.equal operations
@@ -664,7 +571,7 @@ testOperationsSince description =
         , test "operations since last" <| \_ ->
           let
               operations =
-                [ Add replicaId 6 [5] "f" ]
+                [ Add 6 [5] "f" ]
           in
               Expect.equal operations
                 <| Operation.toList
@@ -695,5 +602,3 @@ expectLastOperation exp result =
 expect fun result =
   Result.map fun result
     |> Result.withDefault (Expect.fail "failed")
-
-
