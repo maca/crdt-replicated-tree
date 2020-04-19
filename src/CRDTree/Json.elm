@@ -11,11 +11,9 @@ module CRDTree.Json exposing
 -}
 
 import CRDTree.Operation exposing (Operation(..))
-import Dict exposing (Dict)
 import Json.Decode as Decode
     exposing
         ( Decoder
-        , decodeValue
         , field
         , succeed
         )

@@ -1,6 +1,5 @@
 module CRDTreeTest exposing (..)
 
-import Array exposing (Array)
 import CRDTree
     exposing
         ( CRDTree
@@ -15,12 +14,10 @@ import CRDTree
         , lastOperation
         , operationsSince
         )
-import CRDTree.Node as Node exposing (Node, tombstone)
+import CRDTree.Node as Node exposing (Node)
 import CRDTree.Operation as Operation exposing (Operation(..))
-import Dict exposing (Dict)
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer, int, intRange, list, string)
-import List exposing (map, reverse)
 import Test exposing (..)
 
 
@@ -615,7 +612,8 @@ expectNode path exp result =
 expectOperations exp result =
     expect
         (\tree ->
-            Expect.equal exp (Operation.toList <| operationsSince 0 tree)
+            Expect.equal exp
+                (Operation.toList <| operationsSince 0 tree)
         )
         result
 

@@ -1,70 +1,66 @@
 module CRDTree.Node exposing
     ( Node
     , Error(..)
-    , value
-    , timestamp
-    , path
-    , isDeleted
-    , children
-    , descendant
-    , init
     , root
-    , tombstone
     , addAfter
     , delete
-    , updateParent
+    , value
+    , children
+    , descendant
+    , map
+    , filterMap
+    , foldl
+    , update
     )
 
-{-| This module implements types and functions to build, find, get
+{-| This module implements types and functions to build, get
 values from, and compare nodes
 
 @docs Node
 @docs Error
 
 
-# Properties
-
-@docs value
-@docs timestamp
-@docs path
-@docs isDeleted
-
-
-# Traverse
-
-@docs children
-@docs descendant
-
-
 # Build
 
-@docs init
 @docs root
-@docs tombstone
 
 
 # Operations
 
 @docs addAfter
 @docs delete
-@docs updateParent
+
+
+# Properties
+
+@docs value
+@docs timestamp
+
+
+# Children
+
+@docs children
+@docs descendant
+@docs map
+@docs filterMap
+@docs foldl
 
 -}
 
 import Dict exposing (Dict)
 
 
+type alias Children a =
+    Dict Int (Node a)
+
+
 {-| Node can be either a branch or leaf `Node` with optional
 data or a `Tombstone` representing a removed Node
 -}
 type Node a
-    = Root { children : List (Node a) }
-    | Node
-        { path : List Int
-        , children : List (Node a)
-        , value : a
-        }
-    | Tombstone { path : List Int }
+    = Root (Children a)
+    | Node a (Children a) (Maybe Int)
+    | Tombstone (Maybe Int)
 
 
 {-| Represents an Error updating a node
@@ -72,89 +68,265 @@ type Node a
 type Error
     = NotFound
     | AlreadyApplied
-    | BadTimestamp
+    | Invalid
 
 
-{-| Build a node
-
-    timestamp (init 'a' [ 0, 1 ]) == 1
-
-    path (init 'a' [ 0, 1 ]) == [ 0, 1 ]
-
-    value (init 'a' [ 0, 1 ]) == Just 'a'
-
--}
-init : a -> List Int -> Node a
-init val p =
-    Node
-        { value = val
-        , path = p
-        , children = []
-        }
-
-
-{-| Build a root node
-
-    timestamp root == 0
-
-    path root == []
-
-    value root == Nothing
-
+{-| Create a root node
 -}
 root : Node a
 root =
-    Root { children = [] }
+    Root emptyChildren
 
 
-{-| Build a tombstone providing timestamp and path
+emptyChildren : Children a
+emptyChildren =
+    Dict.singleton 0 (Tombstone Nothing)
 
-    timestamp (tombstone [ 0, 1 ]) == 1
 
-    path (tombstone [ 0, 1 ]) == [ 0, 1 ]
-
-    value (tombstone [ 0, 1 ]) == Nothing
-
+{-| Create node after node at timestamp
 -}
-tombstone : List Int -> Node a
-tombstone p =
-    Tombstone { path = p }
+addAfter : Int -> ( Int, a ) -> Node a -> Result Error (Node a)
+addAfter tsPrev ( ts, val ) parent =
+    case child ts parent of
+        Nothing ->
+            addAfterHelp ( ts, val ) tsPrev parent
+
+        Just _ ->
+            Err AlreadyApplied
 
 
-{-| Return a list of a nodes' children
+addAfterHelp : ( Int, a ) -> Int -> Node a -> Result Error (Node a)
+addAfterHelp ( ts, val ) tsPrev parent =
+    case child tsPrev parent of
+        Nothing ->
+            Err NotFound
+
+        Just found ->
+            let
+                node =
+                    Node val emptyChildren (next found)
+
+                ( leftTs, left ) =
+                    findInsertion ts
+                        ( tsPrev, found )
+                        (childrenDict parent)
+            in
+            parent
+                |> insert leftTs (updateNext ts left)
+                |> insert ts node
+                |> Ok
+
+
+findInsertion : Int -> ( Int, Node a ) -> Children a -> ( Int, Node a )
+findInsertion ts ( tsLeft, left ) c =
+    case next left of
+        Nothing ->
+            ( tsLeft, left )
+
+        Just n ->
+            if ts > n then
+                ( tsLeft, left )
+
+            else
+                case Dict.get n c of
+                    Nothing ->
+                        ( tsLeft, left )
+
+                    Just node ->
+                        findInsertion ts ( n, node ) c
+
+
+{-| Delete a node
 -}
-children : Node a -> List (Node a)
-children n =
-    case n of
-        Root record ->
-            record.children
+delete : Int -> Node a -> Result Error (Node a)
+delete ts parent =
+    case child ts parent of
+        Nothing ->
+            Err NotFound
 
-        Node record ->
-            record.children
+        Just (Node _ _ n) ->
+            Ok <| insert ts (Tombstone n) parent
+
+        Just _ ->
+            Err AlreadyApplied
+
+
+insert : Int -> Node a -> Node a -> Node a
+insert ts node parent =
+    case parent of
+        Node val dict n ->
+            Node val (Dict.insert ts node dict) n
 
         Tombstone _ ->
-            []
+            parent
+
+        Root dict ->
+            Root (Dict.insert ts node dict)
+
+
+update :
+    (Int -> Node a -> Result Error (Node a))
+    -> List Int
+    -> Node a
+    -> Result Error (Node a)
+update func path parent =
+    case parent of
+        Tombstone _ ->
+            Err AlreadyApplied
+
+        _ ->
+            case path of
+                [] ->
+                    Err Invalid
+
+                ts :: [] ->
+                    func ts parent
+
+                ts :: tss ->
+                    updateHelp (update func tss) ts parent
+
+
+updateHelp :
+    (Node a -> Result Error (Node a))
+    -> Int
+    -> Node a
+    -> Result Error (Node a)
+updateHelp func ts parent =
+    case child ts parent of
+        Nothing ->
+            Err Invalid
+
+        Just found ->
+            case func found of
+                Err err ->
+                    Err err
+
+                Ok node ->
+                    if node == found then
+                        Err AlreadyApplied
+
+                    else
+                        Ok <| insert ts node parent
+
+
+{-| List of nodes' children
+-}
+children : Node a -> List ( Int, Node a )
+children node =
+    map Tuple.pair node
+
+
+{-| Apply a function to all children nodes
+-}
+map : (Int -> Node a -> b) -> Node a -> List b
+map func node =
+    foldl (\t n acc -> func t n :: acc) [] node |> List.reverse
+
+
+{-| Filter and apply a function to children nodes
+-}
+filterMap : (Int -> Node a -> Maybe b) -> Node a -> List b
+filterMap func node =
+    foldl (maybeConst func) [] node |> List.reverse
+
+
+maybeConst :
+    (Int -> Node a -> Maybe b)
+    -> Int
+    -> Node a
+    -> List b
+    -> List b
+maybeConst func ts node acc =
+    case func ts node of
+        Nothing ->
+            acc
+
+        Just val ->
+            val :: acc
+
+
+{-| Fold over all children nodes
+-}
+foldl : (Int -> Node a -> b -> b) -> b -> Node a -> b
+foldl func acc node =
+    case Dict.get 0 (childrenDict node) of
+        Nothing ->
+            acc
+
+        Just left ->
+            childrenFold func acc left (childrenDict node)
+
+
+childrenFold :
+    (Int -> Node a -> b -> b)
+    -> b
+    -> Node a
+    -> Children a
+    -> b
+childrenFold func acc left c =
+    let
+        n =
+            next left
+    in
+    case Maybe.andThen (\t -> Dict.get t c) n of
+        Nothing ->
+            acc
+
+        Just ((Tombstone _) as node) ->
+            childrenFold func acc node c
+
+        Just node ->
+            let
+                timestamp =
+                    Maybe.withDefault 0 n
+            in
+            childrenFold func (func timestamp node acc) node c
+
+
+childrenDict : Node a -> Children a
+childrenDict node =
+    case node of
+        Node _ c _ ->
+            c
+
+        Tombstone _ ->
+            Dict.empty
+
+        Root c ->
+            c
+
+
+next : Node a -> Maybe Int
+next node =
+    case node of
+        Node _ _ n ->
+            n
+
+        Tombstone n ->
+            n
+
+        Root _ ->
+            Nothing
+
+
+updateNext : Int -> Node a -> Node a
+updateNext n node =
+    case node of
+        Node val c _ ->
+            Node val c (Just n)
+
+        Tombstone _ ->
+            Tombstone (Just n)
+
+        Root _ ->
+            node
 
 
 {-| Find a node child matching a timestamp
 -}
 child : Int -> Node a -> Maybe (Node a)
 child ts node =
-    find (\n -> timestamp n == ts) (children node)
-
-
-find : (Node a -> Bool) -> List (Node a) -> Maybe (Node a)
-find pred nodes =
-    case nodes of
-        [] ->
-            Nothing
-
-        n :: ns ->
-            if pred n then
-                Just n
-
-            else
-                find pred ns
+    childrenDict node |> Dict.get ts
 
 
 {-| Return a Node at a path
@@ -172,208 +344,16 @@ descendant nodePath n =
             child ts n |> Maybe.andThen (descendant tss)
 
 
-{-| Return the value of a node
-
-    value (node 'a' [ 0, 1 ]) == Just 'a'
-
-    value (tombstone [ 0, 1 ]) == Nothing
-
+{-| Return the value of a node unless deleted or root node
 -}
 value : Node a -> Maybe a
-value n =
-    case n of
-        Root _ ->
-            Nothing
-
-        Node rec ->
-            Just rec.value
-
-        Tombstone _ ->
-            Nothing
-
-
-{-| Return the timestamp of a node
-
-    timestamp (node 'a' [ 0, 1 ]) == 1
-
--}
-timestamp : Node a -> Int
-timestamp n =
-    path n |> List.reverse |> List.head |> Maybe.withDefault 0
-
-
-{-| Return the path of a node
-
-    path (node (Just 'a') [ 0, 1 ]) == [ 0, 1 ]
-
--}
-path : Node a -> List Int
-path n =
-    case n of
-        Root _ ->
-            []
-
-        Node rec ->
-            rec.path
-
-        Tombstone rec ->
-            rec.path
-
-
-{-| Return `True` if the node has been deleted
--}
-isDeleted : Node a -> Bool
-isDeleted n =
-    case n of
-        Root _ ->
-            False
-
-        Node _ ->
-            False
-
-        Tombstone _ ->
-            True
-
-
-{-| Adds after node with timestamp
--}
-addAfter : Int -> ( Int, a ) -> Node a -> Result Error (Node a)
-addAfter prev ( ts, val ) parent =
-    let
-        node =
-            init val <| path parent ++ [ ts ]
-
-        result =
-            case compare prev 0 of
-                LT ->
-                    Err BadTimestamp
-
-                EQ ->
-                    insertAfter prev node [] (children parent)
-
-                GT ->
-                    insertAfter prev node [] (children parent)
-    in
-    applyResult parent result
-
-
-insertAfter :
-    Int
-    -> Node a
-    -> List (Node a)
-    -> List (Node a)
-    -> Result Error (List (Node a))
-insertAfter prev node acc nodes =
-    case nodes of
-        [] ->
-            if prev == 0 then
-                insert node [] acc
-                    |> Result.map (\acc2 -> acc2 ++ nodes)
-                -- optimize
-
-            else
-                Err NotFound
-
-        n :: rest ->
-            if timestamp n == prev then
-                insert node [] acc
-                    |> Result.map (\acc2 -> acc2 ++ nodes)
-
-            else
-                insertAfter prev node (n :: acc) rest
-
-
-insert :
-    Node a
-    -> List (Node a)
-    -> List (Node a)
-    -> Result Error (List (Node a))
-insert node acc nodes =
-    case nodes of
-        [] ->
-            Ok <| node :: acc
-
-        n :: rest ->
-            case compare (timestamp n) (timestamp node) of
-                LT ->
-                    Ok <| List.reverse nodes ++ node :: acc
-
-                EQ ->
-                    Err AlreadyApplied
-
-                GT ->
-                    insert node (n :: acc) rest
-
-
-{-| Delete a node
--}
-delete : Int -> Node a -> Result Error (Node a)
-delete ts parent =
-    update ts (path >> tombstone >> Ok) [] (children parent)
-        |> applyResult parent
-
-
-{-| Update a node with a successful result
--}
-updateParent :
-    Int
-    -> Node a
-    -> (Node a -> Result Error (Node a))
-    -> Result Error (Node a)
-updateParent ts parent updateFn =
-    update ts updateFn [] (children parent)
-        |> applyResult parent
-
-
-update :
-    Int
-    -> (Node a -> Result Error (Node a))
-    -> List (Node a)
-    -> List (Node a)
-    -> Result Error (List (Node a))
-update ts fn acc nodes =
-    case nodes of
-        [] ->
-            Err NotFound
-
-        n :: rest ->
-            if ts < 1 then
-                Err BadTimestamp
-
-            else if timestamp n == ts then
-                case fn n of
-                    Ok node ->
-                        if node == n then
-                            Err AlreadyApplied
-
-                        else
-                            Ok <| List.reverse acc ++ (node :: rest)
-
-                    Err err ->
-                        Err err
-
-            else
-                update ts fn (n :: acc) rest
-
-
-applyResult :
-    Node a
-    -> Result Error (List (Node a))
-    -> Result Error (Node a)
-applyResult parent result =
-    Result.map (\nodes -> replaceChildren nodes parent) result
-
-
-{-| Update a Node's children
--}
-replaceChildren : List (Node a) -> Node a -> Node a
-replaceChildren ch node =
+value node =
     case node of
-        Root record ->
-            Root { record | children = ch }
-
-        Node record ->
-            Node { record | children = ch }
+        Node v _ _ ->
+            Just v
 
         Tombstone _ ->
-            node
+            Nothing
+
+        Root _ ->
+            Nothing

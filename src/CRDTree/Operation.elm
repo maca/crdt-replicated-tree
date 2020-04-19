@@ -34,7 +34,6 @@ module CRDTree.Operation exposing
 
 -}
 
-import CRDTree.Node as Node
 import CRDTree.Timestamp as Timestamp
 
 
