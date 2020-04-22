@@ -28,6 +28,8 @@ suite =
         , testAddAfter "adds after node"
         , testAddBranch
             "adds branch"
+        , testDelete
+            "Delete marks node as tombstone"
         , testAddToDeletedBranch "attempts to add to deleted branch"
         , testBatch
             "performs several operations"
@@ -41,8 +43,6 @@ suite =
             "apply Add inserts at any position"
         , testAddLeaf
             "inserts node as children of nested branch"
-        , testDelete
-            "Delete marks node as tombstone"
         , testDeleteIsIdempotent
             "apply same Delete operation yields same results"
         , testTimestamps
@@ -193,6 +193,26 @@ testAddBranch description =
                             ]
                 in
                 expectLastOperation operation result
+        ]
+
+
+testDelete description =
+    let
+        tree =
+            CRDTree.init 0
+
+        result =
+            add "a" tree
+                |> Result.andThen (delete [ 1 ])
+    in
+    describe description
+        [ test "apply Add delete succeeds" <|
+            always (Expect.ok result)
+        , test "apply Delete result updates tree nodes" <|
+            \_ ->
+                expectNode [ 1 ] Nothing result
+        , test "sets last operation" <|
+            always (expectLastOperation (Delete [ 1 ]) result)
         ]
 
 
@@ -414,31 +434,6 @@ testBatchAtomicity description =
                     apply batch tree
             in
             Expect.err result
-
-
-testDelete description =
-    let
-        tree =
-            CRDTree.init 0
-
-        batch =
-            Batch
-                [ Add 1 [ 0 ] "a"
-                , Delete [ 1 ]
-                ]
-
-        result =
-            apply batch tree
-    in
-    describe description
-        [ test "apply Add delete succeeds" <|
-            always (Expect.ok result)
-        , test "apply Delete result updates tree nodes" <|
-            \_ ->
-                expectNode [ 1 ] Nothing result
-        , test "sets last operation" <|
-            always (expectLastOperation batch result)
-        ]
 
 
 testDeleteIsIdempotent description =

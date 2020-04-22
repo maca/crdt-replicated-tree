@@ -7,14 +7,15 @@ module CRDTree.Node exposing
     , value
     , children
     , descendant
+    , find
     , map
     , filterMap
     , foldl
     , update
     )
 
-{-| This module implements types and functions to build, get
-values from, and compare nodes
+{-| This module implements types and functions to build, traverse and
+transform nodes
 
 @docs Node
 @docs Error
@@ -41,6 +42,7 @@ values from, and compare nodes
 
 @docs children
 @docs descendant
+@docs find
 @docs map
 @docs filterMap
 @docs foldl
@@ -169,8 +171,8 @@ update :
     -> List Int
     -> Node a
     -> Result Error (Node a)
-update func path parent =
-    case parent of
+update func path node =
+    case node of
         Tombstone _ ->
             Err AlreadyApplied
 
@@ -180,10 +182,10 @@ update func path parent =
                     Err Invalid
 
                 ts :: [] ->
-                    func ts parent
+                    func ts node
 
                 ts :: tss ->
-                    updateHelp (update func tss) ts parent
+                    updateHelp (update func tss) ts node
 
 
 updateHelp :
@@ -214,6 +216,35 @@ updateHelp func ts parent =
 children : Node a -> List ( Int, Node a )
 children node =
     map Tuple.pair node
+
+
+{-| Find node matching function
+-}
+find : (Int -> Node a -> Bool) -> Node a -> Maybe (Node a)
+find pred node =
+    Dict.get 0 (childrenDict node)
+        |> Maybe.andThen (findHelp pred (childrenDict node))
+
+
+findHelp :
+    (Int -> Node a -> Bool)
+    -> Children a
+    -> Node a
+    -> Maybe (Node a)
+findHelp pred c left =
+    let
+        n =
+            next left
+    in
+    case Maybe.andThen (\t -> Dict.get t c) n of
+        Nothing ->
+            Nothing
+
+        Just node ->
+            if pred (Maybe.withDefault 0 n) node then
+                Just node
+            else
+                findHelp pred c node
 
 
 {-| Apply a function to all children nodes

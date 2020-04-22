@@ -34,6 +34,12 @@ suite =
                     |> Node.filterMap (\_ n -> Node.value n)
                     |> Expect.equal
                         [ 'a', 'b', 'c', 'd' ]
+        , test "find" <|
+            \_ ->
+                exampleOne
+                    |> Node.find (\_ n -> Node.value n == Just 'c')
+                    |> Maybe.andThen Node.value
+                    |> Expect.equal (Just 'c')
         ]
 
 

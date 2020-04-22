@@ -157,14 +157,14 @@ addBranch value tree =
     add value tree |> Result.map branchCursor
 
 
-{-| Mark a node at a path as deleted.
+{-| Delete a node at a path
 
     init 1
         |> batch [ add "a", add "b" ]
         |> Result.andThen (\tree -> delete (cursor tree) tree)
 
-Nodes are not actually deleted but marked and their children
-discarded.
+Nodes are not actually removed but marked as deleted and their
+children discarded.
 
 -}
 delete : List Int -> CRDTree a -> Result (Error a) (CRDTree a)
