@@ -11,7 +11,7 @@ module CRDTree.Node exposing
     , map
     , filterMap
     , foldl
-    , update
+    , path
     )
 
 {-| This module implements types and functions to build, traverse and
@@ -49,6 +49,7 @@ transform nodes
 
 -}
 
+import Array exposing (Array)
 import Dict exposing (Dict)
 
 
@@ -61,8 +62,8 @@ data or a `Tombstone` representing a removed Node
 -}
 type Node a
     = Root (Children a)
-    | Node a (Children a) (Maybe Int)
-    | Tombstone (Maybe Int)
+    | Node a (Children a) (Array Int) (Maybe Int)
+    | Tombstone (Array Int) (Maybe Int)
 
 
 {-| Represents an Error updating a node
@@ -82,41 +83,42 @@ root =
 
 emptyChildren : Children a
 emptyChildren =
-    Dict.singleton 0 (Tombstone Nothing)
+    Dict.singleton 0 (Tombstone Array.empty Nothing)
 
 
 {-| Create node after node at timestamp
 -}
-addAfter : Int -> ( Int, a ) -> Node a -> Result Error (Node a)
-addAfter tsPrev ( ts, val ) parent =
-    case child ts parent of
-        Nothing ->
-            addAfterHelp ( ts, val ) tsPrev parent
-
-        Just _ ->
-            Err AlreadyApplied
+addAfter : List Int -> ( Int, a ) -> Node a -> Result Error (Node a)
+addAfter p insertion parent =
+    update (addAfterHelp insertion) p parent
 
 
 addAfterHelp : ( Int, a ) -> Int -> Node a -> Result Error (Node a)
 addAfterHelp ( ts, val ) tsPrev parent =
-    case child tsPrev parent of
+    case child ts parent of
         Nothing ->
-            Err NotFound
+          case child tsPrev parent of
+              Nothing ->
+                  Err NotFound
 
-        Just found ->
-            let
-                node =
-                    Node val emptyChildren (next found)
+              Just found ->
+                  let
+                      node =
+                          Node val emptyChildren Array.empty (next found)
 
-                ( leftTs, left ) =
-                    findInsertion ts
-                        ( tsPrev, found )
-                        (childrenDict parent)
-            in
-            parent
-                |> insert leftTs (updateNext ts left)
-                |> insert ts node
-                |> Ok
+                      ( leftTs, left ) =
+                          findInsertion ts
+                              ( tsPrev, found )
+                              (childrenDict parent)
+                  in
+                  parent
+                      |> insert leftTs (updateNext ts left)
+                      |> insert ts node
+                      |> Ok
+
+
+        Just _ ->
+            Err AlreadyApplied
 
 
 findInsertion : Int -> ( Int, Node a ) -> Children a -> ( Int, Node a )
@@ -140,14 +142,19 @@ findInsertion ts ( tsLeft, left ) c =
 
 {-| Delete a node
 -}
-delete : Int -> Node a -> Result Error (Node a)
-delete ts parent =
+delete : List Int -> Node a -> Result Error (Node a)
+delete p node =
+    update deleteHelp p node
+
+
+deleteHelp : Int -> Node a -> Result Error (Node a)
+deleteHelp ts parent =
     case child ts parent of
         Nothing ->
             Err NotFound
 
-        Just (Node _ _ n) ->
-            Ok <| insert ts (Tombstone n) parent
+        Just (Node _ _ p n) ->
+            Ok <| insert ts (Tombstone p n) parent
 
         Just _ ->
             Err AlreadyApplied
@@ -156,10 +163,10 @@ delete ts parent =
 insert : Int -> Node a -> Node a -> Node a
 insert ts node parent =
     case parent of
-        Node val dict n ->
-            Node val (Dict.insert ts node dict) n
+        Node val dict p n ->
+            Node val (Dict.insert ts node dict) p n
 
-        Tombstone _ ->
+        Tombstone _ _ ->
             parent
 
         Root dict ->
@@ -171,13 +178,13 @@ update :
     -> List Int
     -> Node a
     -> Result Error (Node a)
-update func path node =
+update func p node =
     case node of
-        Tombstone _ ->
+        Tombstone _ _ ->
             Err AlreadyApplied
 
         _ ->
-            case path of
+            case p of
                 [] ->
                     Err Invalid
 
@@ -213,24 +220,20 @@ updateHelp func ts parent =
 
 {-| List of nodes' children
 -}
-children : Node a -> List ( Int, Node a )
+children : Node a -> List (Node a)
 children node =
-    map Tuple.pair node
+    map identity node
 
 
 {-| Find node matching function
 -}
-find : (Int -> Node a -> Bool) -> Node a -> Maybe (Node a)
+find : (Node a -> Bool) -> Node a -> Maybe (Node a)
 find pred node =
     Dict.get 0 (childrenDict node)
         |> Maybe.andThen (findHelp pred (childrenDict node))
 
 
-findHelp :
-    (Int -> Node a -> Bool)
-    -> Children a
-    -> Node a
-    -> Maybe (Node a)
+findHelp : (Node a -> Bool) -> Children a -> Node a -> Maybe (Node a)
 findHelp pred c left =
     let
         n =
@@ -241,7 +244,7 @@ findHelp pred c left =
             Nothing
 
         Just node ->
-            if pred (Maybe.withDefault 0 n) node then
+            if pred node then
                 Just node
             else
                 findHelp pred c node
@@ -249,26 +252,21 @@ findHelp pred c left =
 
 {-| Apply a function to all children nodes
 -}
-map : (Int -> Node a -> b) -> Node a -> List b
+map : (Node a -> b) -> Node a -> List b
 map func node =
-    foldl (\t n acc -> func t n :: acc) [] node |> List.reverse
+    foldl (\n acc -> func n :: acc) [] node |> List.reverse
 
 
 {-| Filter and apply a function to children nodes
 -}
-filterMap : (Int -> Node a -> Maybe b) -> Node a -> List b
+filterMap : (Node a -> Maybe b) -> Node a -> List b
 filterMap func node =
     foldl (maybeConst func) [] node |> List.reverse
 
 
-maybeConst :
-    (Int -> Node a -> Maybe b)
-    -> Int
-    -> Node a
-    -> List b
-    -> List b
-maybeConst func ts node acc =
-    case func ts node of
+maybeConst : (Node a -> Maybe b) -> Node a -> List b -> List b
+maybeConst func node acc =
+    case func node of
         Nothing ->
             acc
 
@@ -278,7 +276,7 @@ maybeConst func ts node acc =
 
 {-| Fold over all children nodes
 -}
-foldl : (Int -> Node a -> b -> b) -> b -> Node a -> b
+foldl : (Node a -> b -> b) -> b -> Node a -> b
 foldl func acc node =
     case Dict.get 0 (childrenDict node) of
         Nothing ->
@@ -288,39 +286,26 @@ foldl func acc node =
             childrenFold func acc left (childrenDict node)
 
 
-childrenFold :
-    (Int -> Node a -> b -> b)
-    -> b
-    -> Node a
-    -> Children a
-    -> b
+childrenFold : (Node a -> b -> b) -> b -> Node a -> Children a -> b
 childrenFold func acc left c =
-    let
-        n =
-            next left
-    in
-    case Maybe.andThen (\t -> Dict.get t c) n of
+    case Maybe.andThen (\t -> Dict.get t c) (next left) of
         Nothing ->
             acc
 
-        Just ((Tombstone _) as node) ->
+        Just ((Tombstone _ _) as node) ->
             childrenFold func acc node c
 
         Just node ->
-            let
-                timestamp =
-                    Maybe.withDefault 0 n
-            in
-            childrenFold func (func timestamp node acc) node c
+            childrenFold func (func node acc) node c
 
 
 childrenDict : Node a -> Children a
 childrenDict node =
     case node of
-        Node _ c _ ->
+        Node _ c _ _ ->
             c
 
-        Tombstone _ ->
+        Tombstone _ _ ->
             Dict.empty
 
         Root c ->
@@ -330,10 +315,10 @@ childrenDict node =
 next : Node a -> Maybe Int
 next node =
     case node of
-        Node _ _ n ->
+        Node _ _ _ n ->
             n
 
-        Tombstone n ->
+        Tombstone _ n ->
             n
 
         Root _ ->
@@ -343,11 +328,11 @@ next node =
 updateNext : Int -> Node a -> Node a
 updateNext n node =
     case node of
-        Node val c _ ->
-            Node val c (Just n)
+        Node val c p _ ->
+            Node val c p (Just n)
 
-        Tombstone _ ->
-            Tombstone (Just n)
+        Tombstone p _ ->
+            Tombstone p (Just n)
 
         Root _ ->
             node
@@ -375,15 +360,46 @@ descendant nodePath n =
             child ts n |> Maybe.andThen (descendant tss)
 
 
-{-| Return the value of a node unless deleted or root node
+{-| Path of a node
+-}
+path : Node a -> List Int
+path node =
+    arrayPath node |> Array.toList
+
+
+{-| Path of a node
+-}
+timestamp : Node a -> Int
+timestamp node =
+    let
+        p =
+            arrayPath node
+    in
+    Array.get (Array.length p - 1) p |> Maybe.withDefault 0
+
+
+arrayPath : Node a -> Array Int
+arrayPath node =
+    case node of
+        Node _ _ p _ ->
+            p
+
+        Tombstone p _ ->
+            p
+
+        Root _ ->
+            Array.empty
+
+
+{-| Value of a node unless deleted or root node
 -}
 value : Node a -> Maybe a
 value node =
     case node of
-        Node v _ _ ->
+        Node v _ _ _ ->
             Just v
 
-        Tombstone _ ->
+        Tombstone _ _ ->
             Nothing
 
         Root _ ->

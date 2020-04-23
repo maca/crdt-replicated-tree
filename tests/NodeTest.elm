@@ -20,32 +20,42 @@ suite =
     describe "Node"
         [ test "map" <|
             \_ ->
-                exampleOne
-                    |> Node.map (\t n -> ( t, Node.value n ))
+                flatExample
+                    |> Node.map Node.value
                     |> Expect.equal
-                        [ ( 1, Just 'a' )
-                        , ( 2, Just 'b' )
-                        , ( 3, Just 'c' )
-                        , ( 4, Just 'd' )
-                        ]
+                        [ Just 'a', Just 'b', Just 'c', Just 'd' ]
         , test "filter map" <|
             \_ ->
-                exampleOne
-                    |> Node.filterMap (\_ n -> Node.value n)
+                flatExample
+                    |> Node.filterMap Node.value
                     |> Expect.equal
                         [ 'a', 'b', 'c', 'd' ]
         , test "find" <|
             \_ ->
-                exampleOne
-                    |> Node.find (\_ n -> Node.value n == Just 'c')
+                flatExample
+                    |> Node.find (\n -> Node.value n == Just 'c')
                     |> Maybe.andThen Node.value
                     |> Expect.equal (Just 'c')
+        , test "descendant" <|
+            \_ ->
+                nestedExample
+                    |> Node.descendant [ 1, 2, 3, 4 ]
+                    |> Maybe.andThen Node.value
+                    |> Expect.equal (Just 'd')
         ]
 
 
-exampleOne =
-    addAfter 0 ( 1, 'a' ) root
-        |> Result.andThen (addAfter 1 ( 2, 'b' ))
-        |> Result.andThen (addAfter 2 ( 3, 'c' ))
-        |> Result.andThen (addAfter 3 ( 4, 'd' ))
+flatExample =
+    addAfter [ 0 ] ( 1, 'a' ) root
+        |> Result.andThen (addAfter [ 1 ] ( 2, 'b' ))
+        |> Result.andThen (addAfter [ 2 ] ( 3, 'c' ))
+        |> Result.andThen (addAfter [ 3 ] ( 4, 'd' ))
+        |> Result.withDefault root
+
+
+nestedExample =
+    addAfter [ 0 ] ( 1, 'a' ) root
+        |> Result.andThen (addAfter [ 1, 0 ] ( 2, 'b' ))
+        |> Result.andThen (addAfter [ 1, 2, 0 ] ( 3, 'c' ))
+        |> Result.andThen (addAfter [ 1, 2, 3, 0 ] ( 4, 'd' ))
         |> Result.withDefault root
