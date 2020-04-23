@@ -188,8 +188,8 @@ update :
     -> List Int
     -> Node a
     -> Result Error (Node a)
-update func p node =
-    case node of
+update func p parent =
+    case parent of
         Tombstone _ _ ->
             Err AlreadyApplied
 
@@ -199,33 +199,24 @@ update func p node =
                     Err Invalid
 
                 ts :: [] ->
-                    func ts node
+                    func ts parent
 
                 ts :: tss ->
-                    updateHelp (update func tss) ts node
+                    case child ts parent of
+                        Nothing ->
+                            Err Invalid
 
+                        Just found ->
+                            case update func tss found of
+                                Err err ->
+                                    Err err
 
-updateHelp :
-    (Node a -> Result Error (Node a))
-    -> Int
-    -> Node a
-    -> Result Error (Node a)
-updateHelp func ts parent =
-    case child ts parent of
-        Nothing ->
-            Err Invalid
+                                Ok n ->
+                                    if n == found then
+                                        Err AlreadyApplied
 
-        Just found ->
-            case func found of
-                Err err ->
-                    Err err
-
-                Ok node ->
-                    if node == found then
-                        Err AlreadyApplied
-
-                    else
-                        Ok <| insert ts node parent
+                                    else
+                                        Ok <| insert ts n parent
 
 
 {-| List of nodes' children
@@ -373,13 +364,6 @@ descendant nodePath n =
 
 {-| Path of a node
 -}
-path : Node a -> List Int
-path node =
-    arrayPath node |> Array.toList
-
-
-{-| Path of a node
--}
 timestamp : Node a -> Int
 timestamp node =
     let
@@ -387,6 +371,13 @@ timestamp node =
             arrayPath node
     in
     Array.get (Array.length p - 1) p |> Maybe.withDefault 0
+
+
+{-| Path of a node
+-}
+path : Node a -> List Int
+path node =
+    arrayPath node |> Array.toList
 
 
 arrayPath : Node a -> Array Int
