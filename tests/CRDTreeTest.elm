@@ -165,32 +165,63 @@ testAddBranch description =
         tree =
             CRDTree.init 0
 
+        operations =
+            [ Add 1 [ 0 ] "a"
+            , Add 2 [ 1, 0 ] "b"
+            , Add 3 [ 1, 2, 0 ] "c"
+            , Add 4 [ 1, 2, 3, 0 ] "d"
+            , Add 5 [ 1, 2, 3, 4, 0 ] "e"
+            , Add 6 [ 1, 2, 3, 4, 5 ] "f"
+            ]
+
         result =
-            batch [ addBranch "a", add "b" ] tree
+            tree
+                |> batch
+                   [ addBranch "a"
+                   , addBranch "b"
+                   , addBranch "c"
+                   , addBranch "d"
+                   , add "e"
+                   , add "f"
+                   ]
     in
     describe description
         [ test "apply Batch succeeds" <|
             always (Expect.ok result)
-        , test "apply Batch adds branch child" <|
+
+        , test "apply Batch adds top level" <|
+            \_ ->
+                expectNode [ 1 ] (Just "a") result
+
+        , test "apply Batch adds second level" <|
             \_ ->
                 expectNode [ 1, 2 ] (Just "b") result
+
+        , test "apply Batch adds third level" <|
+            \_ ->
+                expectNode [ 1, 2, 3 ] (Just "c") result
+
+        , test "apply Batch adds fourth level" <|
+            \_ ->
+                expectNode [ 1, 2, 3, 4 ] (Just "d") result
+
+        , test "apply Batch adds fifth level" <|
+            \_ ->
+                expectNode [ 1, 2, 3, 4, 5 ] (Just "e") result
+
+        , test "apply Batch appends to fifth level" <|
+            \_ ->
+                expectNode [ 1, 2, 3, 4, 6 ] (Just "f") result
+
         , test "apply Batch sets tree operations" <|
             \_ ->
-                let
-                    operations =
-                        [ Add 1 [ 0 ] "a"
-                        , Add 2 [ 1, 0 ] "b"
-                        ]
-                in
                 expectOperations operations result
+
         , test "sets last operation" <|
             \_ ->
                 let
                     operation =
-                        Batch
-                            [ Add 1 [ 0 ] "a"
-                            , Add 2 [ 1, 0 ] "b"
-                            ]
+                        Batch operations
                 in
                 expectLastOperation operation result
         ]
