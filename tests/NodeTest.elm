@@ -48,6 +48,12 @@ suite =
                     |> Node.descendant [ 1, 2, 3, 4 ]
                     |> Maybe.map Node.path
                     |> Expect.equal (Just [ 1, 2, 3, 4 ])
+        , test "timestamp" <|
+            \_ ->
+                nestedExample
+                    |> Node.descendant [ 1, 2, 3, 4 ]
+                    |> Maybe.map Node.timestamp
+                    |> Expect.equal (Just 4)
         ]
 
 

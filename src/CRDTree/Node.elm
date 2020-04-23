@@ -5,6 +5,7 @@ module CRDTree.Node exposing
     , addAfter
     , delete
     , value
+    , timestamp
     , children
     , descendant
     , find
