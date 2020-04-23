@@ -42,6 +42,12 @@ suite =
                     |> Node.descendant [ 1, 2, 3, 4 ]
                     |> Maybe.andThen Node.value
                     |> Expect.equal (Just 'd')
+        , test "path" <|
+            \_ ->
+                nestedExample
+                    |> Node.descendant [ 1, 2, 3, 4 ]
+                    |> Maybe.map Node.path
+                    |> Expect.equal (Just [ 1, 2, 3, 4 ])
         ]
 
 

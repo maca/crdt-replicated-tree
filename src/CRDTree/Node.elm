@@ -90,35 +90,44 @@ emptyChildren =
 -}
 addAfter : List Int -> ( Int, a ) -> Node a -> Result Error (Node a)
 addAfter p insertion parent =
-    update (addAfterHelp insertion) p parent
+    update (addAfterHelp p insertion) p parent
 
 
-addAfterHelp : ( Int, a ) -> Int -> Node a -> Result Error (Node a)
-addAfterHelp ( ts, val ) tsPrev parent =
+addAfterHelp :
+    List Int
+    -> ( Int, a )
+    -> Int
+    -> Node a
+    -> Result Error (Node a)
+addAfterHelp p ( ts, val ) prevTs parent =
     case child ts parent of
-        Nothing ->
-          case child tsPrev parent of
-              Nothing ->
-                  Err NotFound
-
-              Just found ->
-                  let
-                      node =
-                          Node val emptyChildren Array.empty (next found)
-
-                      ( leftTs, left ) =
-                          findInsertion ts
-                              ( tsPrev, found )
-                              (childrenDict parent)
-                  in
-                  parent
-                      |> insert leftTs (updateNext ts left)
-                      |> insert ts node
-                      |> Ok
-
-
         Just _ ->
             Err AlreadyApplied
+
+        Nothing ->
+            case child prevTs parent of
+                Nothing ->
+                    Err NotFound
+
+                Just found ->
+                    let
+                        ( leftTs, left ) =
+                            findInsertion ts
+                                ( prevTs, found )
+                                (childrenDict parent)
+
+                        nodePath =
+                            Array.fromList p
+                                |> Array.slice 0 -1
+                                |> Array.push ts
+
+                        node =
+                            Node val emptyChildren nodePath (next found)
+                    in
+                    parent
+                        |> insert leftTs (updateNext ts left)
+                        |> insert ts node
+                        |> Ok
 
 
 findInsertion : Int -> ( Int, Node a ) -> Children a -> ( Int, Node a )
@@ -246,6 +255,7 @@ findHelp pred c left =
         Just node ->
             if pred node then
                 Just node
+
             else
                 findHelp pred c node
 
