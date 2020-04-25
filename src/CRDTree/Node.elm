@@ -12,6 +12,7 @@ module CRDTree.Node exposing
     , map
     , filterMap
     , foldl
+    , foldr
     , path
     )
 
@@ -79,6 +80,7 @@ type Error
 -}
 root : Node a
 root =
+
     Root emptyChildren
 
 
@@ -207,16 +209,8 @@ update func p parent =
                             Err Invalid
 
                         Just found ->
-                            case update func tss found of
-                                Err err ->
-                                    Err err
-
-                                Ok n ->
-                                    if n == found then
-                                        Err AlreadyApplied
-
-                                    else
-                                        Ok <| insert ts n parent
+                            update func tss found
+                                |> Result.map (\n -> insert ts n parent)
 
 
 {-| List of nodes' children
@@ -236,11 +230,7 @@ find pred node =
 
 findHelp : (Node a -> Bool) -> Children a -> Node a -> Maybe (Node a)
 findHelp pred c left =
-    let
-        n =
-            next left
-    in
-    case Maybe.andThen (\t -> Dict.get t c) n of
+    case Maybe.andThen (\t -> Dict.get t c) (next left) of
         Nothing ->
             Nothing
 
@@ -256,7 +246,7 @@ findHelp pred c left =
 -}
 map : (Node a -> b) -> Node a -> List b
 map func node =
-    foldl (\n acc -> func n :: acc) [] node |> List.reverse
+    foldr (func >> (::)) [] node
 
 
 {-| Filter and apply a function to children nodes
@@ -276,7 +266,7 @@ maybeConst func node acc =
             val :: acc
 
 
-{-| Fold over all children nodes
+{-| Fold over all children nodes from the left
 -}
 foldl : (Node a -> b -> b) -> b -> Node a -> b
 foldl func acc node =
@@ -286,6 +276,13 @@ foldl func acc node =
 
         Just left ->
             childrenFold func acc left (childrenDict node)
+
+
+{-| Fold over all children nodes from the left
+-}
+foldr : (Node a -> b -> b) -> b -> Node a -> b
+foldr func acc node =
+    foldl (::) [] node |> List.foldl func acc
 
 
 childrenFold : (Node a -> b -> b) -> b -> Node a -> Children a -> b
