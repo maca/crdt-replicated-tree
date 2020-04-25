@@ -489,7 +489,11 @@ cursor (CRDTree record) =
 -}
 moveCursorUp : CRDTree a -> CRDTree a
 moveCursorUp ((CRDTree record) as tree) =
-    CRDTree { record | cursor = cursor tree |> Array.slice 0 -1 }
+    if (Array.length <| cursor tree) == 1 then
+        tree
+
+    else
+        CRDTree { record | cursor = cursor tree |> Array.slice 0 -1 }
 
 
 buildPath : Int -> List Int -> Array Int
