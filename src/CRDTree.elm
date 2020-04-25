@@ -225,9 +225,7 @@ apply : Operation a -> CRDTree a -> Result (Error a) (CRDTree a)
 apply operation tree =
     applyLocal operation tree
         |> Result.map
-            (\(CRDTree record) ->
-                CRDTree { record | cursor = cursor tree }
-            )
+            (\(CRDTree rec) -> CRDTree { rec | cursor = cursor tree })
 
 
 {-| Apply a local operation, the cursor for the `CRDTree` will
@@ -239,13 +237,17 @@ applyLocal operation ((CRDTree record) as tree) =
         Add ts path value ->
             record.root
                 |> Node.addAfter path ( ts, value )
-                |> mapResult operation path tree
+                |> mapResult operation path ts tree
                 |> Result.map (incrementTimestamp ts)
 
         Delete path ->
+            let
+                ts =
+                    Operation.timestamp operation |> Maybe.withDefault 0
+            in
             record.root
                 |> Node.delete path
-                |> mapResult operation path tree
+                |> mapResult operation path ts tree
 
         Batch ops ->
             batch (List.map apply ops) tree
@@ -254,16 +256,13 @@ applyLocal operation ((CRDTree record) as tree) =
 mapResult :
     Operation a
     -> List Int
+    -> Int
     -> CRDTree a
     -> Result Node.Error (Node a)
     -> Result (Error a) (CRDTree a)
-mapResult operation path (CRDTree rec) result =
+mapResult operation path ts (CRDTree rec) result =
     case result of
         Ok node ->
-            let
-                ts =
-                    Operation.timestamp operation |> Maybe.withDefault 0
-            in
             { rec
                 | root = node
                 , cursor = buildPath ts path
