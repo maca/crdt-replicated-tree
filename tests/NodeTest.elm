@@ -18,7 +18,45 @@ import Test exposing (..)
 suite : Test
 suite =
     describe "Node"
-        [ test "map" <|
+        [ describe "add order"
+            [ test "append smaller first" <|
+                \_ ->
+                    appendSmallerFirstExample
+                        |> Node.map Node.value
+                        |> Expect.equal
+                            [ Just 'a', Just 'b' ]
+            , test "append bigger first" <|
+                \_ ->
+                    appendBiggerFirstExample
+                        |> Node.map Node.value
+                        |> Expect.equal
+                            [ Just 'a', Just 'b' ]
+            , test "insert smaller first" <|
+                \_ ->
+                    insertSmallerFirstExample
+                        |> Node.map Node.value
+                        |> Expect.equal
+                            [ Just 1
+                            , Just 2
+                            , Just 3
+                            , Just 4
+                            , Just 5
+                            , Just 6
+                            ]
+            , test "insert bigger first" <|
+                \_ ->
+                    insertBiggerFirstExample
+                        |> Node.map Node.value
+                        |> Expect.equal
+                            [ Just 1
+                            , Just 2
+                            , Just 3
+                            , Just 4
+                            , Just 5
+                            , Just 6
+                            ]
+            ]
+        , test "map" <|
             \_ ->
                 flatExample
                     |> Node.map Node.value
@@ -55,6 +93,38 @@ suite =
                     |> Maybe.map Node.timestamp
                     |> Expect.equal (Just 4)
         ]
+
+
+appendSmallerFirstExample =
+    addAfter [ 0 ] ( 1, 'a' ) root
+        |> Result.andThen (addAfter [ 0 ] ( 2, 'b' ))
+        |> Result.withDefault root
+
+
+appendBiggerFirstExample =
+    addAfter [ 0 ] ( 2, 'b' ) root
+        |> Result.andThen (addAfter [ 0 ] ( 1, 'a' ))
+        |> Result.withDefault root
+
+
+insertSmallerFirstExample =
+    addAfter [ 0 ] ( 1, 1 ) root
+        |> Result.andThen (addAfter [ 1 ] ( 2, 2 ))
+        |> Result.andThen (addAfter [ 2 ] ( 3, 3 ))
+        |> Result.andThen (addAfter [ 1 ] ( 6, 6 ))
+        |> Result.andThen (addAfter [ 1 ] ( 5, 5 ))
+        |> Result.andThen (addAfter [ 1 ] ( 4, 4 ))
+        |> Result.withDefault root
+
+
+insertBiggerFirstExample =
+    addAfter [ 0 ] ( 1, 1 ) root
+        |> Result.andThen (addAfter [ 1 ] ( 2, 2 ))
+        |> Result.andThen (addAfter [ 2 ] ( 3, 3 ))
+        |> Result.andThen (addAfter [ 1 ] ( 6, 6 ))
+        |> Result.andThen (addAfter [ 1 ] ( 4, 4 ))
+        |> Result.andThen (addAfter [ 1 ] ( 5, 5 ))
+        |> Result.withDefault root
 
 
 flatExample =

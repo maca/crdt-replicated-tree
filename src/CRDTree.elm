@@ -186,9 +186,10 @@ batch :
     -> CRDTree a
     -> Result (Error a) (CRDTree a)
 batch funcs ((CRDTree record) as tree) =
-    CRDTree { record | lastOperation = Batch [] }
-        |> Ok
-        |> batchFold tree funcs
+    List.foldl
+        (\f r -> Result.andThen (f >> Result.map2 mergeOperations r) r)
+        (CRDTree { record | lastOperation = Batch [] } |> Ok)
+        funcs
 
 
 {-| Apply a remote operation
@@ -237,7 +238,7 @@ applyLocal operation ((CRDTree record) as tree) =
         Add ts path value ->
             record.root
                 |> Node.addAfter path ( ts, value )
-                |> mapResult operation path ts tree
+                |> updateTree operation path ts tree
                 |> Result.map (incrementTimestamp ts)
 
         Delete path ->
@@ -247,20 +248,20 @@ applyLocal operation ((CRDTree record) as tree) =
             in
             record.root
                 |> Node.delete path
-                |> mapResult operation path ts tree
+                |> updateTree operation path ts tree
 
         Batch ops ->
             batch (List.map apply ops) tree
 
 
-mapResult :
+updateTree :
     Operation a
     -> List Int
     -> Int
     -> CRDTree a
     -> Result Node.Error (Node a)
     -> Result (Error a) (CRDTree a)
-mapResult operation path ts (CRDTree rec) result =
+updateTree operation path ts (CRDTree rec) result =
     case result of
         Ok node ->
             { rec
@@ -278,23 +279,6 @@ mapResult operation path ts (CRDTree rec) result =
 
         Err _ ->
             Error operation |> Err
-
-
-batchFold :
-    CRDTree a
-    -> List (CRDTree a -> Result (Error a) (CRDTree a))
-    -> Result (Error a) (CRDTree a)
-    -> Result (Error a) (CRDTree a)
-batchFold tree opFuns result =
-    case opFuns of
-        [] ->
-            result
-
-        f :: fs ->
-            result
-                |> Result.andThen
-                    (f >> Result.map2 mergeOperations result)
-                |> batchFold tree fs
 
 
 mergeOperations : CRDTree a -> CRDTree a -> CRDTree a

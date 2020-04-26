@@ -12,8 +12,7 @@ module CRDTree.Node exposing
     , map
     , filterMap
     , foldl
-    , foldr
-    , path
+    , foldr, path
     )
 
 {-| This module implements types and functions to build, traverse and
@@ -80,7 +79,6 @@ type Error
 -}
 root : Node a
 root =
-
     Root emptyChildren
 
 
@@ -125,7 +123,7 @@ addAfterHelp p ( ts, val ) prevTs parent =
                                 |> Array.push ts
 
                         node =
-                            Node val emptyChildren nodePath (next found)
+                            Node val emptyChildren nodePath (next left)
                     in
                     parent
                         |> insert leftTs (updateNext ts left)
@@ -134,22 +132,17 @@ addAfterHelp p ( ts, val ) prevTs parent =
 
 
 findInsertion : Int -> ( Int, Node a ) -> Children a -> ( Int, Node a )
-findInsertion ts ( tsLeft, left ) c =
-    case next left of
+findInsertion ts ( n, node ) c =
+    case nextNodeTuple node c of
         Nothing ->
-            ( tsLeft, left )
+            ( n, node )
 
-        Just n ->
-            if ts > n then
-                ( tsLeft, left )
+        Just found ->
+            if ts < Tuple.first found then
+                ( n, node )
 
             else
-                case Dict.get n c of
-                    Nothing ->
-                        ( tsLeft, left )
-
-                    Just node ->
-                        findInsertion ts ( n, node ) c
+                findInsertion ts found c
 
 
 {-| Delete a node
@@ -287,7 +280,7 @@ foldr func acc node =
 
 childrenFold : (Node a -> b -> b) -> b -> Node a -> Children a -> b
 childrenFold func acc left c =
-    case Maybe.andThen (\t -> Dict.get t c) (next left) of
+    case nextNode left c of
         Nothing ->
             acc
 
@@ -322,6 +315,16 @@ next node =
 
         Root _ ->
             Nothing
+
+
+nextNode : Node a -> Children a -> Maybe (Node a)
+nextNode node c =
+    next node |> Maybe.andThen (\n -> Dict.get n c)
+
+
+nextNodeTuple : Node a -> Children a -> Maybe ( Int, Node a )
+nextNodeTuple node c =
+    Maybe.map2 Tuple.pair (next node) (nextNode node c)
 
 
 updateNext : Int -> Node a -> Node a
