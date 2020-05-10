@@ -109,7 +109,7 @@ init replicaId =
         , cursor = Array.fromList [ 0 ]
         , replicas = Dict.empty
         , root = Node.root
-        , timestamp = replicaId * 2 ^ 32
+        , timestamp = Timestamp.init replicaId
         , lastOperation = Batch []
         }
 
@@ -236,10 +236,18 @@ applyLocal : Operation a -> CRDTree a -> Result (Error a) (CRDTree a)
 applyLocal operation ((CRDTree record) as tree) =
     case operation of
         Add ts path value ->
+            let
+                additionOp =
+                    if id tree == replicaId ts then
+                        Node.localAddAfter
+
+                    else
+                        Node.addAfter
+            in
             record.root
-                |> Node.addAfter path ( ts, value )
+                |> additionOp path ( ts, value )
                 |> updateTree operation path ts tree
-                |> Result.map (incrementTimestamp ts)
+                |> Result.map (mergeTimestamp ts)
 
         Delete path ->
             let
@@ -292,18 +300,23 @@ mergeOperations (CRDTree one) (CRDTree two) =
 
 incrementTimestamp : Int -> CRDTree a -> CRDTree a
 incrementTimestamp ts ((CRDTree record) as tree) =
-    if Timestamp.replicaId ts == id tree then
-        CRDTree { record | timestamp = nextTimestamp tree }
+    CRDTree { record | timestamp = nextTimestamp tree }
 
-    else
-        tree
+
+mergeTimestamp : Int -> CRDTree a -> CRDTree a
+mergeTimestamp ts (CRDTree record) =
+    let
+        ts2 =
+            Timestamp.incrementTo ts record.timestamp
+    in
+    CRDTree { record | timestamp = ts2 }
 
 
 {-| Get the next timestamp
 -}
 nextTimestamp : CRDTree a -> Int
 nextTimestamp (CRDTree record) =
-    record.timestamp + 1
+    Timestamp.increment record.timestamp
 
 
 {-| Return the last successfully applied operation or batch

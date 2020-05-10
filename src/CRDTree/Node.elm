@@ -3,6 +3,7 @@ module CRDTree.Node exposing
     , Error(..)
     , root
     , addAfter
+    , localAddAfter
     , delete
     , value
     , timestamp
@@ -12,7 +13,7 @@ module CRDTree.Node exposing
     , map
     , filterMap
     , foldl
-    , foldr, path
+    , first, foldlFrom, foldr, next, path
     )
 
 {-| This module implements types and functions to build, traverse and
@@ -30,6 +31,7 @@ transform nodes
 # Operations
 
 @docs addAfter
+@docs localAddAfter
 @docs delete
 
 
@@ -91,16 +93,32 @@ emptyChildren =
 -}
 addAfter : List Int -> ( Int, a ) -> Node a -> Result Error (Node a)
 addAfter p insertion parent =
-    update (addAfterHelp p insertion) p parent
+    let
+        findFunc =
+            findInsertion (childrenDict parent)
+    in
+    update (addAfterHelp findFunc p insertion) p parent
+
+
+{-| Create node after node at timestamp
+-}
+localAddAfter :
+    List Int
+    -> ( Int, a )
+    -> Node a
+    -> Result Error (Node a)
+localAddAfter p insertion parent =
+    update (addAfterHelp (always identity) p insertion) p parent
 
 
 addAfterHelp :
-    List Int
+    (Int -> ( Int, Node a ) -> ( Int, Node a ))
+    -> List Int
     -> ( Int, a )
     -> Int
     -> Node a
     -> Result Error (Node a)
-addAfterHelp p ( ts, val ) prevTs parent =
+addAfterHelp findFunc p ( ts, val ) prevTs parent =
     case child ts parent of
         Just _ ->
             Err AlreadyApplied
@@ -113,9 +131,7 @@ addAfterHelp p ( ts, val ) prevTs parent =
                 Just found ->
                     let
                         ( leftTs, left ) =
-                            findInsertion ts
-                                ( prevTs, found )
-                                (childrenDict parent)
+                            findFunc ts ( prevTs, found )
 
                         nodePath =
                             Array.fromList p
@@ -123,7 +139,8 @@ addAfterHelp p ( ts, val ) prevTs parent =
                                 |> Array.push ts
 
                         node =
-                            Node val emptyChildren nodePath (next left)
+                            nextTimestamp left
+                                |> Node val emptyChildren nodePath
                     in
                     parent
                         |> insert leftTs (updateNext ts left)
@@ -131,18 +148,18 @@ addAfterHelp p ( ts, val ) prevTs parent =
                         |> Ok
 
 
-findInsertion : Int -> ( Int, Node a ) -> Children a -> ( Int, Node a )
-findInsertion ts ( n, node ) c =
+findInsertion : Children a -> Int -> ( Int, Node a ) -> ( Int, Node a )
+findInsertion c ts ( n, node ) =
     case nextNodeTuple node c of
         Nothing ->
             ( n, node )
 
         Just found ->
-            if ts < Tuple.first found then
+            if ts > Tuple.first found then
                 ( n, node )
 
             else
-                findInsertion ts found c
+                findInsertion c ts found
 
 
 {-| Delete a node
@@ -217,13 +234,13 @@ children node =
 -}
 find : (Node a -> Bool) -> Node a -> Maybe (Node a)
 find pred node =
-    Dict.get 0 (childrenDict node)
+    first node
         |> Maybe.andThen (findHelp pred (childrenDict node))
 
 
 findHelp : (Node a -> Bool) -> Children a -> Node a -> Maybe (Node a)
 findHelp pred c left =
-    case Maybe.andThen (\t -> Dict.get t c) (next left) of
+    case next left c of
         Nothing ->
             Nothing
 
@@ -233,6 +250,44 @@ findHelp pred c left =
 
             else
                 findHelp pred c node
+
+
+{-| Find node matching function
+-}
+findN : (Node a -> Bool) -> Int -> Node a -> List (Node a)
+findN pred count node =
+    first node
+        |> Maybe.map (findNHelp pred [] count (childrenDict node))
+        |> Maybe.map List.reverse
+        |> Maybe.withDefault []
+
+
+findNHelp :
+    (Node a -> Bool)
+    -> List (Node a)
+    -> Int
+    -> Children a
+    -> Node a
+    -> List (Node a)
+findNHelp pred acc count c left =
+    case next left c of
+        Nothing ->
+            acc
+
+        Just node ->
+            let
+                acc_ =
+                    if pred node then
+                        node :: acc
+
+                    else
+                        acc
+            in
+            if List.length acc_ == count then
+                acc_
+
+            else
+                findNHelp pred acc_ count c node
 
 
 {-| Apply a function to all children nodes
@@ -261,34 +316,34 @@ maybeConst func node acc =
 
 {-| Fold over all children nodes from the left
 -}
-foldl : (Node a -> b -> b) -> b -> Node a -> b
-foldl func acc node =
-    case Dict.get 0 (childrenDict node) of
-        Nothing ->
-            acc
-
-        Just left ->
-            childrenFold func acc left (childrenDict node)
-
-
-{-| Fold over all children nodes from the left
--}
 foldr : (Node a -> b -> b) -> b -> Node a -> b
 foldr func acc node =
     foldl (::) [] node |> List.foldl func acc
 
 
-childrenFold : (Node a -> b -> b) -> b -> Node a -> Children a -> b
-childrenFold func acc left c =
-    case nextNode left c of
+{-| Fold over all children nodes from the left
+-}
+foldl : (Node a -> b -> b) -> b -> Node a -> b
+foldl func acc node =
+    case first node of
+        Nothing ->
+            acc
+
+        Just left ->
+            foldlFrom func left acc (childrenDict node)
+
+
+foldlFrom : (Node a -> b -> b) -> Node a -> b -> Children a -> b
+foldlFrom func left acc c =
+    case next left c of
         Nothing ->
             acc
 
         Just ((Tombstone _ _) as node) ->
-            childrenFold func acc node c
+            foldlFrom func node acc c
 
         Just node ->
-            childrenFold func (func node acc) node c
+            foldlFrom func node (func node acc) c
 
 
 childrenDict : Node a -> Children a
@@ -304,8 +359,8 @@ childrenDict node =
             c
 
 
-next : Node a -> Maybe Int
-next node =
+nextTimestamp : Node a -> Maybe Int
+nextTimestamp node =
     case node of
         Node _ _ _ n ->
             n
@@ -317,14 +372,19 @@ next node =
             Nothing
 
 
-nextNode : Node a -> Children a -> Maybe (Node a)
-nextNode node c =
-    next node |> Maybe.andThen (\n -> Dict.get n c)
+first : Node a -> Maybe (Node a)
+first node =
+    Dict.get 0 (childrenDict node)
+
+
+next : Node a -> Children a -> Maybe (Node a)
+next node c =
+    nextTimestamp node |> Maybe.andThen (\n -> Dict.get n c)
 
 
 nextNodeTuple : Node a -> Children a -> Maybe ( Int, Node a )
 nextNodeTuple node c =
-    Maybe.map2 Tuple.pair (next node) (nextNode node c)
+    Maybe.map2 Tuple.pair (nextTimestamp node) (next node c)
 
 
 updateNext : Int -> Node a -> Node a

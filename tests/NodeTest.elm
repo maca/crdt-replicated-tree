@@ -18,42 +18,32 @@ import Test exposing (..)
 suite : Test
 suite =
     describe "Node"
-        [ describe "add order"
-            [ test "append smaller first" <|
+        [ describe "concurrent inserts order consistency"
+            [ test "apply local first" <|
                 \_ ->
-                    appendSmallerFirstExample
+                    localFirstExample
                         |> Node.map Node.value
                         |> Expect.equal
-                            [ Just 'a', Just 'b' ]
-            , test "append bigger first" <|
-                \_ ->
-                    appendBiggerFirstExample
-                        |> Node.map Node.value
-                        |> Expect.equal
-                            [ Just 'a', Just 'b' ]
-            , test "insert smaller first" <|
-                \_ ->
-                    insertSmallerFirstExample
-                        |> Node.map Node.value
-                        |> Expect.equal
-                            [ Just 1
-                            , Just 2
-                            , Just 3
-                            , Just 4
-                            , Just 5
-                            , Just 6
+                            [ Just 'a'
+                            , Just 'p'
+                            , Just 'q'
+                            , Just 'x'
+                            , Just 'y'
+                            , Just 'b'
+                            , Just 'c'
                             ]
-            , test "insert bigger first" <|
+            , test "apply remote first" <|
                 \_ ->
-                    insertBiggerFirstExample
+                    remoteFirstExample
                         |> Node.map Node.value
                         |> Expect.equal
-                            [ Just 1
-                            , Just 2
-                            , Just 3
-                            , Just 4
-                            , Just 5
-                            , Just 6
+                            [ Just 'a'
+                            , Just 'p'
+                            , Just 'q'
+                            , Just 'x'
+                            , Just 'y'
+                            , Just 'b'
+                            , Just 'c'
                             ]
             ]
         , test "map" <|
@@ -95,35 +85,26 @@ suite =
         ]
 
 
-appendSmallerFirstExample =
-    addAfter [ 0 ] ( 1, 'a' ) root
-        |> Result.andThen (addAfter [ 0 ] ( 2, 'b' ))
+commonExample =
+    addAfter [ 0 ] ( 0x00100001, 'a' ) root
+        |> Result.andThen (addAfter [ 0x00100001 ] ( 0x00200001, 'b' ))
+        |> Result.andThen (addAfter [ 0x00200001 ] ( 0x00300001, 'c' ))
         |> Result.withDefault root
 
 
-appendBiggerFirstExample =
-    addAfter [ 0 ] ( 2, 'b' ) root
-        |> Result.andThen (addAfter [ 0 ] ( 1, 'a' ))
+localFirstExample =
+    addAfter [ 0x00100001 ] ( 0x00400001, 'x' ) commonExample
+        |> Result.andThen (addAfter [ 0x00400001 ] ( 0x00500001, 'y' ))
+        |> Result.andThen (addAfter [ 0x00100001 ] ( 0x00400002, 'p' ))
+        |> Result.andThen (addAfter [ 0x00400002 ] ( 0x00500002, 'q' ))
         |> Result.withDefault root
 
 
-insertSmallerFirstExample =
-    addAfter [ 0 ] ( 1, 1 ) root
-        |> Result.andThen (addAfter [ 1 ] ( 2, 2 ))
-        |> Result.andThen (addAfter [ 2 ] ( 3, 3 ))
-        |> Result.andThen (addAfter [ 1 ] ( 6, 6 ))
-        |> Result.andThen (addAfter [ 1 ] ( 5, 5 ))
-        |> Result.andThen (addAfter [ 1 ] ( 4, 4 ))
-        |> Result.withDefault root
-
-
-insertBiggerFirstExample =
-    addAfter [ 0 ] ( 1, 1 ) root
-        |> Result.andThen (addAfter [ 1 ] ( 2, 2 ))
-        |> Result.andThen (addAfter [ 2 ] ( 3, 3 ))
-        |> Result.andThen (addAfter [ 1 ] ( 6, 6 ))
-        |> Result.andThen (addAfter [ 1 ] ( 4, 4 ))
-        |> Result.andThen (addAfter [ 1 ] ( 5, 5 ))
+remoteFirstExample =
+    addAfter [ 0x00100001 ] ( 0x00400002, 'p' ) commonExample
+        |> Result.andThen (addAfter [ 0x00400002 ] ( 0x00500002, 'q' ))
+        |> Result.andThen (addAfter [ 0x00100001 ] ( 0x00400001, 'x' ))
+        |> Result.andThen (addAfter [ 0x00400001 ] ( 0x00500001, 'y' ))
         |> Result.withDefault root
 
 
