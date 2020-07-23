@@ -47,6 +47,7 @@ transform nodes
 @docs map
 @docs filterMap
 @docs foldl
+@docs atIndex
 
 -}
 
