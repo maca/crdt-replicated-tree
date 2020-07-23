@@ -32,6 +32,8 @@ suite =
                             , Just 'b'
                             , Just 'c'
                             ]
+
+            --
             , test "apply remote first" <|
                 \_ ->
                     remoteFirstExample
@@ -46,42 +48,101 @@ suite =
                             , Just 'c'
                             ]
             ]
+
+        --
         , test "map" <|
             \_ ->
                 flatExample
                     |> Node.map Node.value
                     |> Expect.equal
-                        [ Just 'a', Just 'b', Just 'c', Just 'd' ]
+                        [ Just 'a', Just 'b', Just 'c', Just 'd', Just 'e' ]
         , test "filter map" <|
             \_ ->
                 flatExample
                     |> Node.filterMap Node.value
                     |> Expect.equal
-                        [ 'a', 'b', 'c', 'd' ]
+                        [ 'a', 'b', 'c', 'd', 'e' ]
+
+        --
         , test "find" <|
             \_ ->
                 flatExample
                     |> Node.find (\n -> Node.value n == Just 'c')
                     |> Maybe.andThen Node.value
                     |> Expect.equal (Just 'c')
+
+        --
         , test "descendant" <|
             \_ ->
                 nestedExample
                     |> Node.descendant [ 1, 2, 3, 4 ]
                     |> Maybe.andThen Node.value
                     |> Expect.equal (Just 'd')
+
+        --
         , test "path" <|
             \_ ->
                 nestedExample
                     |> Node.descendant [ 1, 2, 3, 4 ]
                     |> Maybe.map Node.path
                     |> Expect.equal (Just [ 1, 2, 3, 4 ])
+
+        --
         , test "timestamp" <|
             \_ ->
                 nestedExample
                     |> Node.descendant [ 1, 2, 3, 4 ]
                     |> Maybe.map Node.timestamp
                     |> Expect.equal (Just 4)
+
+        --
+        , test "atIndex" <|
+            \_ ->
+                flatExample
+                    |> Expect.all
+                        [ Node.atIndex 0
+                            >> Maybe.andThen Node.value
+                            >> Expect.equal (Just 'a')
+                        , Node.atIndex 1
+                            >> Maybe.andThen Node.value
+                            >> Expect.equal (Just 'b')
+                        , Node.atIndex 2
+                            >> Maybe.andThen Node.value
+                            >> Expect.equal (Just 'c')
+                        , Node.atIndex 3
+                            >> Maybe.andThen Node.value
+                            >> Expect.equal (Just 'd')
+                        , Node.atIndex 4
+                            >> Maybe.andThen Node.value
+                            >> Expect.equal (Just 'e')
+                        ]
+
+        --
+        , test "childIndex" <|
+            \_ ->
+                flatExample
+                    |> Expect.all
+                        [ Node.atIndex 0
+                            >> Maybe.andThen
+                                (\n -> Node.childIndex n flatExample)
+                            >> Expect.equal (Just 0)
+                        , Node.atIndex 1
+                            >> Maybe.andThen
+                                (\n -> Node.childIndex n flatExample)
+                            >> Expect.equal (Just 1)
+                        , Node.atIndex 2
+                            >> Maybe.andThen
+                                (\n -> Node.childIndex n flatExample)
+                            >> Expect.equal (Just 2)
+                        , Node.atIndex 3
+                            >> Maybe.andThen
+                                (\n -> Node.childIndex n flatExample)
+                            >> Expect.equal (Just 3)
+                        , Node.atIndex 4
+                            >> Maybe.andThen
+                                (\n -> Node.childIndex n flatExample)
+                            >> Expect.equal (Just 4)
+                        ]
         ]
 
 
@@ -113,6 +174,9 @@ flatExample =
         |> Result.andThen (addAfter [ 1 ] ( 2, 'b' ))
         |> Result.andThen (addAfter [ 2 ] ( 3, 'c' ))
         |> Result.andThen (addAfter [ 3 ] ( 4, 'd' ))
+        |> Result.andThen (addAfter [ 1 ] ( 5, 'z' ))
+        |> Result.andThen (Node.delete [ 5 ])
+        |> Result.andThen (addAfter [ 4 ] ( 6, 'e' ))
         |> Result.withDefault root
 
 

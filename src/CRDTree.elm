@@ -185,7 +185,7 @@ batch :
     List (CRDTree a -> Result (Error a) (CRDTree a))
     -> CRDTree a
     -> Result (Error a) (CRDTree a)
-batch funcs ((CRDTree record) as tree) =
+batch funcs (CRDTree record) =
     List.foldl
         (\f r -> Result.andThen (f >> Result.map2 mergeOperations r) r)
         (CRDTree { record | lastOperation = Batch [] } |> Ok)
@@ -296,11 +296,6 @@ mergeOperations (CRDTree one) (CRDTree two) =
             Operation.merge one.lastOperation two.lastOperation
     in
     CRDTree { two | lastOperation = operation }
-
-
-incrementTimestamp : Int -> CRDTree a -> CRDTree a
-incrementTimestamp ts ((CRDTree record) as tree) =
-    CRDTree { record | timestamp = nextTimestamp tree }
 
 
 mergeTimestamp : Int -> CRDTree a -> CRDTree a

@@ -10,10 +10,13 @@ module CRDTree.Node exposing
     , children
     , descendant
     , find
+    , findNodes
     , map
     , filterMap
     , foldl
-    , first, foldlFrom, foldr, next, path
+    , atIndex
+    , childIndex
+    , path
     )
 
 {-| This module implements types and functions to build, traverse and
@@ -46,9 +49,13 @@ transform nodes
 @docs children
 @docs descendant
 @docs find
+@docs findNodes
 @docs map
 @docs filterMap
 @docs foldl
+@docs atIndex
+@docs childIndex
+@docs path
 
 -}
 
@@ -93,22 +100,7 @@ emptyChildren =
 -}
 addAfter : List Int -> ( Int, a ) -> Node a -> Result Error (Node a)
 addAfter p insertion parent =
-    let
-        findFunc =
-            findInsertion (childrenDict parent)
-    in
-    update (addAfterHelp findFunc p insertion) p parent
-
-
-{-| Create node after node at timestamp
--}
-localAddAfter :
-    List Int
-    -> ( Int, a )
-    -> Node a
-    -> Result Error (Node a)
-localAddAfter p insertion parent =
-    update (addAfterHelp (always identity) p insertion) p parent
+    update (addAfterHelp (findInsertion parent) p insertion) p parent
 
 
 addAfterHelp :
@@ -148,9 +140,20 @@ addAfterHelp findFunc p ( ts, val ) prevTs parent =
                         |> Ok
 
 
-findInsertion : Children a -> Int -> ( Int, Node a ) -> ( Int, Node a )
-findInsertion c ts ( n, node ) =
-    case nextNodeTuple node c of
+{-| Create node after node at timestamp
+-}
+localAddAfter :
+    List Int
+    -> ( Int, a )
+    -> Node a
+    -> Result Error (Node a)
+localAddAfter p insertion parent =
+    update (addAfterHelp (always identity) p insertion) p parent
+
+
+findInsertion : Node a -> Int -> ( Int, Node a ) -> ( Int, Node a )
+findInsertion parent ts ( n, node ) =
+    case nextNodeTuple node parent of
         Nothing ->
             ( n, node )
 
@@ -159,7 +162,7 @@ findInsertion c ts ( n, node ) =
                 ( n, node )
 
             else
-                findInsertion c ts found
+                findInsertion parent ts found
 
 
 {-| Delete a node
@@ -226,21 +229,20 @@ update func p parent =
 {-| List of nodes' children
 -}
 children : Node a -> List (Node a)
-children node =
-    map identity node
+children parent =
+    map identity parent
 
 
 {-| Find node matching function
 -}
 find : (Node a -> Bool) -> Node a -> Maybe (Node a)
-find pred node =
-    first node
-        |> Maybe.andThen (findHelp pred (childrenDict node))
+find pred parent =
+    first parent |> Maybe.andThen (findHelp pred parent)
 
 
-findHelp : (Node a -> Bool) -> Children a -> Node a -> Maybe (Node a)
-findHelp pred c left =
-    case next left c of
+findHelp : (Node a -> Bool) -> Node a -> Node a -> Maybe (Node a)
+findHelp pred parent left =
+    case next left parent of
         Nothing ->
             Nothing
 
@@ -249,15 +251,15 @@ findHelp pred c left =
                 Just node
 
             else
-                findHelp pred c node
+                findHelp pred parent node
 
 
-{-| Find node matching function
+{-| Find nodes matching function
 -}
-findN : (Node a -> Bool) -> Int -> Node a -> List (Node a)
-findN pred count node =
-    first node
-        |> Maybe.map (findNHelp pred [] count (childrenDict node))
+findNodes : (Node a -> Bool) -> Int -> Node a -> List (Node a)
+findNodes pred count parent =
+    first parent
+        |> Maybe.map (findNHelp pred [] count parent)
         |> Maybe.map List.reverse
         |> Maybe.withDefault []
 
@@ -266,11 +268,11 @@ findNHelp :
     (Node a -> Bool)
     -> List (Node a)
     -> Int
-    -> Children a
+    -> Node a
     -> Node a
     -> List (Node a)
-findNHelp pred acc count c left =
-    case next left c of
+findNHelp pred acc count parent left =
+    case next left parent of
         Nothing ->
             acc
 
@@ -287,7 +289,7 @@ findNHelp pred acc count c left =
                 acc_
 
             else
-                findNHelp pred acc_ count c node
+                findNHelp pred acc_ count parent node
 
 
 {-| Apply a function to all children nodes
@@ -324,26 +326,74 @@ foldr func acc node =
 {-| Fold over all children nodes from the left
 -}
 foldl : (Node a -> b -> b) -> b -> Node a -> b
-foldl func acc node =
-    case first node of
+foldl func acc parent =
+    case first parent of
         Nothing ->
             acc
 
         Just left ->
-            foldlFrom func left acc (childrenDict node)
+            foldlFrom func left acc parent
 
 
-foldlFrom : (Node a -> b -> b) -> Node a -> b -> Children a -> b
-foldlFrom func left acc c =
-    case next left c of
+{-| Get a child at index
+-}
+atIndex : Int -> Node a -> Maybe (Node a)
+atIndex idx parent =
+    first parent |> Maybe.andThen (atIndexHelp idx 0 parent)
+
+
+atIndexHelp : Int -> Int -> Node a -> Node a -> Maybe (Node a)
+atIndexHelp idx current parent left =
+    case next left parent of
+        Nothing ->
+            Nothing
+
+        Just ((Tombstone _ _) as node) ->
+            atIndexHelp idx current parent node
+
+        Just node ->
+            if idx == current then
+                Just node
+
+            else
+                atIndexHelp idx (current + 1) parent node
+
+
+{-| Get index of a child
+-}
+childIndex : Node a -> Node a -> Maybe Int
+childIndex expected parent =
+    first parent |> Maybe.andThen (childIndexHelp 0 expected parent)
+
+
+childIndexHelp : Int -> Node a -> Node a -> Node a -> Maybe Int
+childIndexHelp idx expected parent left =
+    case next left parent of
+        Nothing ->
+            Nothing
+
+        Just ((Tombstone _ _) as node) ->
+            childIndexHelp idx expected parent node
+
+        Just node ->
+            if node == expected then
+                Just idx
+
+            else
+                childIndexHelp (idx + 1) expected parent node
+
+
+foldlFrom : (Node a -> b -> b) -> Node a -> b -> Node a -> b
+foldlFrom func left acc parent =
+    case next left parent of
         Nothing ->
             acc
 
         Just ((Tombstone _ _) as node) ->
-            foldlFrom func node acc c
+            foldlFrom func node acc parent
 
         Just node ->
-            foldlFrom func node (func node acc) c
+            foldlFrom func node (func node acc) parent
 
 
 childrenDict : Node a -> Children a
@@ -377,14 +427,19 @@ first node =
     Dict.get 0 (childrenDict node)
 
 
-next : Node a -> Children a -> Maybe (Node a)
-next node c =
-    nextTimestamp node |> Maybe.andThen (\n -> Dict.get n c)
+next : Node a -> Node a -> Maybe (Node a)
+next node parent =
+    case nextTimestamp node of
+        Nothing ->
+            Nothing
+
+        Just ts ->
+            Dict.get ts (childrenDict parent)
 
 
-nextNodeTuple : Node a -> Children a -> Maybe ( Int, Node a )
-nextNodeTuple node c =
-    Maybe.map2 Tuple.pair (nextTimestamp node) (next node c)
+nextNodeTuple : Node a -> Node a -> Maybe ( Int, Node a )
+nextNodeTuple node parent =
+    Maybe.map2 Tuple.pair (nextTimestamp node) (next node parent)
 
 
 updateNext : Int -> Node a -> Node a
