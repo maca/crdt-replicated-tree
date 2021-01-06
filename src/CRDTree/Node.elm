@@ -85,6 +85,11 @@ type Error
 
 
 {-| Create a root node
+
+    timestamp root -- 0
+
+    value root -- Nothing
+
 -}
 root : Node a
 root =
@@ -97,6 +102,14 @@ emptyChildren =
 
 
 {-| Create node after node at timestamp
+
+    addAfter [ 0 ] ( 1, 'a' ) root
+        |> Result.map (atIndex 0 >> Maybe.andThen value)
+
+    -- Ok (Just 'a')
+
+    addAfter [ 1 ] ( 1, 'a' ) root -- Err NotFound
+
 -}
 addAfter : List Int -> ( Int, a ) -> Node a -> Result Error (Node a)
 addAfter p insertion parent =
@@ -125,14 +138,14 @@ addAfterHelp findFunc p ( ts, val ) prevTs parent =
                         ( leftTs, left ) =
                             findFunc ts ( prevTs, found )
 
-                        nodePath =
+                        nd =
                             Array.fromList p
                                 |> Array.slice 0 -1
                                 |> Array.push ts
+                                |> Node val emptyChildren
 
                         node =
-                            nextTimestamp left
-                                |> Node val emptyChildren nodePath
+                            nextNodeTimestamp left |> nd
                     in
                     parent
                         |> insert leftTs (updateNext ts left)
@@ -409,8 +422,8 @@ childrenDict node =
             c
 
 
-nextTimestamp : Node a -> Maybe Int
-nextTimestamp node =
+nextNodeTimestamp : Node a -> Maybe Int
+nextNodeTimestamp node =
     case node of
         Node _ _ _ n ->
             n
@@ -429,7 +442,7 @@ first node =
 
 next : Node a -> Node a -> Maybe (Node a)
 next node parent =
-    case nextTimestamp node of
+    case nextNodeTimestamp node of
         Nothing ->
             Nothing
 
@@ -439,7 +452,7 @@ next node parent =
 
 nextNodeTuple : Node a -> Node a -> Maybe ( Int, Node a )
 nextNodeTuple node parent =
-    Maybe.map2 Tuple.pair (nextTimestamp node) (next node parent)
+    Maybe.map2 Tuple.pair (nextNodeTimestamp node) (next node parent)
 
 
 updateNext : Int -> Node a -> Node a

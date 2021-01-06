@@ -239,7 +239,8 @@ applyLocal operation ((CRDTree record) as tree) =
             let
                 additionOp =
                     if id tree == replicaId ts then
-                        Node.localAddAfter
+                        -- Node.localAddAfter
+                        Node.addAfter
 
                     else
                         Node.addAfter
