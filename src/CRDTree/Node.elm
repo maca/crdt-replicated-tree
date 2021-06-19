@@ -69,8 +69,8 @@ root =
 {-| List of nodes' children
 -}
 children : Node a -> List (Node a)
-children =
-    Node.children
+children node =
+    map identity node
 
 
 {-| Find node matching function

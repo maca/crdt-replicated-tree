@@ -2,7 +2,7 @@ module Internal.Node exposing
     ( Error(..)
     , Node
     , addAfter
-    , children
+    , childrenDict
     , delete
     , descendant
     , filterMap
@@ -10,6 +10,8 @@ module Internal.Node exposing
     , foldl
     , foldr
     , map
+    , next
+    , nextNode
     , path
     , root
     , timestamp
@@ -90,7 +92,7 @@ addAfterHelp p ( ts, val ) prevTs parent =
 
 findInsertion : Int -> ( Int, Node a ) -> Children a -> ( Int, Node a )
 findInsertion ts ( n, node ) c =
-    case nextNodeTuple node c of
+    case Maybe.map2 Tuple.pair (next node) (nextNode node c) of
         Nothing ->
             ( n, node )
 
@@ -159,11 +161,6 @@ update func p parent =
                         Just found ->
                             update func tss found
                                 |> Result.map (\n -> insert ts n parent)
-
-
-children : Node a -> List (Node a)
-children node =
-    map identity node
 
 
 find : (Node a -> Bool) -> Node a -> Maybe (Node a)
@@ -263,11 +260,6 @@ next node =
 nextNode : Node a -> Children a -> Maybe (Node a)
 nextNode node c =
     next node |> Maybe.andThen (\n -> Dict.get n c)
-
-
-nextNodeTuple : Node a -> Children a -> Maybe ( Int, Node a )
-nextNodeTuple node c =
-    Maybe.map2 Tuple.pair (next node) (nextNode node c)
 
 
 updateNext : Int -> Node a -> Node a

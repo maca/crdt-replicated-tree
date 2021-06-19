@@ -1,5 +1,5 @@
 module CRDTree exposing
-    ( CRDTree
+    ( CRDTree(..)
     , init
     , Error(..)
     , add
@@ -10,11 +10,13 @@ module CRDTree exposing
     , apply
     , operationsSince
     , lastOperation
-    , id
-    , timestamp
     , root
     , get
     , getValue
+    , next
+    , previous
+    , id
+    , timestamp
     , cursor
     , moveCursorUp
     , lastReplicaTimestamp
@@ -51,13 +53,19 @@ The path of a node in the tree is represented as a `List Int`.
 @docs lastOperation
 
 
+# Traversing
+
+@docs root
+@docs get
+@docs getValue
+@docs next
+@docs previous
+
+
 # Tree
 
 @docs id
 @docs timestamp
-@docs root
-@docs get
-@docs getValue
 @docs cursor
 @docs moveCursorUp
 
@@ -484,11 +492,51 @@ cursor (CRDTree record) =
 -}
 moveCursorUp : CRDTree a -> CRDTree a
 moveCursorUp ((CRDTree record) as tree) =
-    if (Array.length <| record.cursor) == 1 then
+    if Array.length record.cursor == 1 then
         tree
 
     else
         CRDTree { record | cursor = record.cursor |> Array.slice 0 -1 }
+
+
+{-| Get the next node after another
+-}
+next : Node a -> CRDTree a -> Maybe (Node a)
+next node tree =
+    -- TODO: no tests
+    Node.childrenDict (parent tree node)
+        |> Node.nextNode node
+
+
+{-| Get the previous node before another
+-}
+previous : Node a -> CRDTree a -> Maybe (Node a)
+previous node tree =
+    -- TODO: no tests
+    let
+        nodeTimestamp =
+            Node.timestamp node
+    in
+    parent tree node
+        |> Node.find (\n -> Node.next n == Just nodeTimestamp)
+
+
+parent : CRDTree a -> Node a -> Node a
+parent tree node =
+    Node.path node
+        |> Array.fromList
+        |> Array.slice 0 -1
+        |> Array.toList
+        |> (\path -> get path tree)
+        |> Maybe.withDefault (root tree)
+
+
+
+-- next ((CRDTree record) as tree) =
+--     if Array.length record.cursor == 1 then
+--         tree
+--     else
+--         CRDTree { record | cursor = record.cursor |> Array.slice 0 -1 }
 
 
 buildPath : Int -> List Int -> Array Int
