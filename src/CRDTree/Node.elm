@@ -6,13 +6,14 @@ module CRDTree.Node exposing
     , delete
     , value
     , timestamp
+    , path
     , children
     , descendant
     , find
     , map
     , filterMap
     , foldl
-    , foldr, path
+    , foldr
     )
 
 {-| This module implements types and functions to build, traverse and
@@ -37,6 +38,7 @@ transform nodes
 
 @docs value
 @docs timestamp
+@docs path
 
 
 # Children
@@ -47,6 +49,7 @@ transform nodes
 @docs map
 @docs filterMap
 @docs foldl
+@docs foldr
 
 -}
 
@@ -148,18 +151,18 @@ findInsertion ts ( n, node ) c =
 {-| Delete a node
 -}
 delete : List Int -> Node a -> Result Error (Node a)
-delete p node =
-    update deleteHelp p node
+delete nodePath node =
+    update deleteHelp nodePath node
 
 
 deleteHelp : Int -> Node a -> Result Error (Node a)
-deleteHelp ts parent =
-    case child ts parent of
+deleteHelp nodeTimestamp parent =
+    case child nodeTimestamp parent of
         Nothing ->
             Err NotFound
 
         Just (Node _ _ p n) ->
-            Ok <| insert ts (Tombstone p n) parent
+            Ok <| insert nodeTimestamp (Tombstone p n) parent
 
         Just _ ->
             Err AlreadyApplied
@@ -362,7 +365,7 @@ descendant nodePath n =
             child ts n |> Maybe.andThen (descendant tss)
 
 
-{-| Path of a node
+{-| Timestamp of a node
 -}
 timestamp : Node a -> Int
 timestamp node =

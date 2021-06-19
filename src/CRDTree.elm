@@ -223,10 +223,10 @@ batch funcs ((CRDTree record) as tree) =
 
 -}
 apply : Operation a -> CRDTree a -> Result (Error a) (CRDTree a)
-apply operation tree =
+apply operation ((CRDTree record) as tree) =
     applyLocal operation tree
         |> Result.map
-            (\(CRDTree rec) -> CRDTree { rec | cursor = cursor tree })
+            (\(CRDTree rec) -> CRDTree { rec | cursor = record.cursor })
 
 
 {-| Apply a local operation, the cursor for the `CRDTree` will
@@ -451,9 +451,9 @@ getValue path tree =
     (cursor treeB) == [1, 2, 0]
 
 -}
-cursor : CRDTree a -> Array Int
+cursor : CRDTree a -> List Int
 cursor (CRDTree record) =
-    record.cursor
+    Array.toList record.cursor
 
 
 {-| Move the tree cursor one level up
@@ -473,11 +473,11 @@ cursor (CRDTree record) =
 -}
 moveCursorUp : CRDTree a -> CRDTree a
 moveCursorUp ((CRDTree record) as tree) =
-    if (Array.length <| cursor tree) == 1 then
+    if (Array.length <| record.cursor) == 1 then
         tree
 
     else
-        CRDTree { record | cursor = cursor tree |> Array.slice 0 -1 }
+        CRDTree { record | cursor = record.cursor |> Array.slice 0 -1 }
 
 
 buildPath : Int -> List Int -> Array Int
