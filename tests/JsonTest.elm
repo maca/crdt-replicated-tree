@@ -1,15 +1,11 @@
 module JsonTest exposing (..)
 
 import Bitwise
-import CRDTree.Json
-    exposing
-        ( operationDecoder
-        , operationEncoder
-        )
-import CRDTree.Operation exposing (Operation(..))
+import CRDTree.Operation exposing (decoder, encoder)
 import Dict exposing (Dict, empty, fromList)
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer, int, intRange, list, string)
+import Internal.Operation exposing (Operation(..))
 import Json.Decode as Decode exposing (decodeValue)
 import Json.Encode as Encode
 import List exposing (map, reverse)
@@ -28,10 +24,10 @@ suite =
                             Add 3 [ 1, 2 ] "a"
 
                         value =
-                            operationEncoder Encode.string operation
+                            encoder Encode.string operation
 
                         result =
-                            decodeValue (operationDecoder Decode.string) value
+                            decodeValue (decoder Decode.string) value
                     in
                     expectResult operation result
             , test "Delete" <|
@@ -41,10 +37,10 @@ suite =
                             Delete [ 1, 2 ]
 
                         value =
-                            operationEncoder Encode.string operation
+                            encoder Encode.string operation
 
                         result =
-                            decodeValue (operationDecoder Decode.string) value
+                            decodeValue (decoder Decode.string) value
                     in
                     expectResult operation result
             , test "Batch" <|
@@ -58,10 +54,10 @@ suite =
                                 ]
 
                         value =
-                            operationEncoder Encode.string operation
+                            encoder Encode.string operation
 
                         result =
-                            decodeValue (operationDecoder Decode.string) value
+                            decodeValue (decoder Decode.string) value
                     in
                     expectResult operation result
             ]

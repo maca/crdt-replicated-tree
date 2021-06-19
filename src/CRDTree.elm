@@ -69,20 +69,21 @@ The path of a node in the tree is represented as a `List Int`.
 -}
 
 import Array exposing (Array)
-import CRDTree.Node as Node exposing (Error(..), Node(..))
-import CRDTree.Operation as Operation exposing (Operation(..))
 import CRDTree.Timestamp as Timestamp exposing (replicaId)
 import Dict exposing (Dict)
+import Internal.Node as Node exposing (Error(..), Node(..))
+import Internal.Operation as Operation exposing (Operation(..))
 import Result
 
 
 {-| Failure to apply an operation
 -}
 type Error a
-    = Error (Operation a)
+    = InvalidPath (Operation a)
+    | NodeNotFound (Operation a)
 
 
-{-| A Replicated Tree, see [int](#init).
+{-| A Replicated Tree, see [init](#init).
 -}
 type CRDTree a
     = CRDTree
@@ -243,12 +244,19 @@ applyLocal operation ((CRDTree record) as tree) =
 
         Delete path ->
             let
-                ts =
+                nodeTimestamp =
                     Operation.timestamp operation |> Maybe.withDefault 0
+
+                -- siblings =
+                --     moveCursorUp tree
+                --         |> cursor
+                --         |> get
+                --         |> Node.find (\n -> Node.path (Node.nextNode n) == path)
+                -- _ = Array.fromList path |> Array.slice 0 -1
             in
             record.root
                 |> Node.delete path
-                |> updateTree operation path ts tree
+                |> updateTree operation path nodeTimestamp tree
 
         Batch ops ->
             batch (List.map apply ops) tree
@@ -277,8 +285,11 @@ updateTree operation path ts (CRDTree rec) result =
         Err AlreadyApplied ->
             CRDTree { rec | lastOperation = Batch [] } |> Ok
 
-        Err _ ->
-            Error operation |> Err
+        Err Node.InvalidPath ->
+            InvalidPath operation |> Err
+
+        Err Node.NotFound ->
+            NodeNotFound operation |> Err
 
 
 mergeOperations : CRDTree a -> CRDTree a -> CRDTree a

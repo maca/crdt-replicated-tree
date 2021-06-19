@@ -1,6 +1,8 @@
 module NodeTest exposing (..)
 
-import CRDTree.Node as Node
+import Expect exposing (Expectation)
+import Fuzz exposing (Fuzzer, int, intRange, list, string)
+import Internal.Node as Node
     exposing
         ( Error(..)
         , Node
@@ -8,9 +10,7 @@ import CRDTree.Node as Node
         , children
         , root
         )
-import CRDTree.Operation as Operation exposing (Operation(..))
-import Expect exposing (Expectation)
-import Fuzz exposing (Fuzzer, int, intRange, list, string)
+import Internal.Operation as Operation exposing (Operation(..))
 import Result
 import Test exposing (..)
 

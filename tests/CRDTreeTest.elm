@@ -15,9 +15,9 @@ import CRDTree
         , operationsSince
         )
 import CRDTree.Node as Node exposing (Node)
-import CRDTree.Operation as Operation exposing (Operation(..))
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer, int, intRange, list, string)
+import Internal.Operation as Operation exposing (Operation(..))
 import Test exposing (..)
 
 
@@ -177,46 +177,38 @@ testAddBranch description =
         result =
             tree
                 |> batch
-                   [ addBranch "a"
-                   , addBranch "b"
-                   , addBranch "c"
-                   , addBranch "d"
-                   , add "e"
-                   , add "f"
-                   ]
+                    [ addBranch "a"
+                    , addBranch "b"
+                    , addBranch "c"
+                    , addBranch "d"
+                    , add "e"
+                    , add "f"
+                    ]
     in
     describe description
         [ test "apply Batch succeeds" <|
             always (Expect.ok result)
-
         , test "apply Batch adds top level" <|
             \_ ->
                 expectNode [ 1 ] (Just "a") result
-
         , test "apply Batch adds second level" <|
             \_ ->
                 expectNode [ 1, 2 ] (Just "b") result
-
         , test "apply Batch adds third level" <|
             \_ ->
                 expectNode [ 1, 2, 3 ] (Just "c") result
-
         , test "apply Batch adds fourth level" <|
             \_ ->
                 expectNode [ 1, 2, 3, 4 ] (Just "d") result
-
         , test "apply Batch adds fifth level" <|
             \_ ->
                 expectNode [ 1, 2, 3, 4, 5 ] (Just "e") result
-
         , test "apply Batch appends to fifth level" <|
             \_ ->
                 expectNode [ 1, 2, 3, 4, 6 ] (Just "f") result
-
         , test "apply Batch sets tree operations" <|
             \_ ->
                 expectOperations operations result
-
         , test "sets last operation" <|
             \_ ->
                 let

@@ -6,7 +6,6 @@
     "version": "5.0.0",
     "exposed-modules": [
         "CRDTree",
-        "CRDTree.Json",
         "CRDTree.Node",
         "CRDTree.Operation"
     ],
