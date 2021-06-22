@@ -16,6 +16,7 @@ module CRDTree exposing
     , getValue
     , next
     , prev
+    , walk
     , id
     , timestamp
     , cursor
@@ -65,6 +66,11 @@ The path of a node in the tree is represented as a `List Int`.
 @docs prev
 
 
+# Transform
+
+@docs walk
+
+
 # Tree
 
 @docs id
@@ -81,7 +87,7 @@ The path of a node in the tree is represented as a `List Int`.
 -}
 
 import Array exposing (Array)
-import CRDTree.Node exposing (Step(..), loop)
+import CRDTree.Node exposing (Step(..), head, loop)
 import CRDTree.Timestamp as Timestamp exposing (replicaId)
 import Dict exposing (Dict)
 import Internal.Node as Node exposing (Error(..), Node(..))
@@ -194,7 +200,7 @@ delete path tree =
 
         mprevious =
             mnode
-                |> Maybe.map (\n -> parent n tree)
+                |> Maybe.andThen (\n -> parent n tree)
                 |> Maybe.withDefault (root tree)
                 |> Node.find (\n -> next n tree == mnode)
 
@@ -417,14 +423,21 @@ root (CRDTree record) =
 
 {-| Get the parent node
 -}
-parent : Node a -> CRDTree a -> Node a
+parent : Node a -> CRDTree a -> Maybe (Node a)
 parent node tree =
-    Node.path node
-        |> Array.fromList
-        |> Array.slice 0 -1
-        |> Array.toList
-        |> (\path -> get path tree)
-        |> Maybe.withDefault (root tree)
+    -- TODO: No tests
+    let
+        parentPath =
+            Node.path node
+                |> Array.fromList
+                |> Array.slice 0 -1
+                |> Array.toList
+    in
+    if List.isEmpty parentPath then
+        Just (root tree)
+
+    else
+        get parentPath tree
 
 
 {-| Get a value at path
@@ -541,21 +554,70 @@ setCursor path ((CRDTree record) as tree) =
             Ok <| CRDTree { record | cursor = Array.fromList path }
 
 
-{-| Get the next node after another
+{-| Get the next node after another.
 -}
 next : Node a -> CRDTree a -> Maybe (Node a)
 next node tree =
     -- TODO: no tests
-    Node.children (parent node tree)
-        |> Node.nextNode node
+    parent node tree
+        |> Maybe.map Node.children
+        |> Maybe.andThen (Node.nextNode node)
 
 
-{-| Get the previous node before another
+{-| Get the previous node before another.
 -}
 prev : Node a -> CRDTree a -> Maybe (Node a)
 prev node tree =
     -- TODO: no tests
-    Node.find (\n -> next n tree == Just node) (parent node tree)
+    parent node tree
+        |> Maybe.andThen (Node.find (\n -> next n tree == Just node))
+
+
+{-| Walk a portion of the tree reducing from the left from a starting node,
+or from the beginning, stopping at an arbitrary point.
+-}
+walk : (Node a -> b -> Step b) -> b -> Maybe (Node a) -> CRDTree a -> b
+walk func acc start tree =
+    let
+        doWalk node =
+            Maybe.map (Node.children >> walkHelp func acc node)
+                >> Maybe.withDefault acc
+    in
+    case start of
+        Just node ->
+            doWalk node <| parent node tree
+
+        Nothing ->
+            case head (root tree) of
+                Nothing ->
+                    acc
+
+                Just node ->
+                    doWalk node <| parent node tree
+
+
+walkHelp : (Node a -> b -> Step b) -> b -> Node a -> Dict Int (Node a) -> b
+walkHelp func acc left siblings =
+    case Node.nextNode left siblings of
+        Nothing ->
+            acc
+
+        Just node ->
+            case func node acc of
+                Done b ->
+                    b
+
+                Take b ->
+                    let
+                        c =
+                            case head node of
+                                Just start ->
+                                    walkHelp func b start (Node.children node)
+
+                                Nothing ->
+                                    b
+                    in
+                    walkHelp func c node siblings
 
 
 buildPath : Int -> List Int -> Array Int
