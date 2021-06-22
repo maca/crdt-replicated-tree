@@ -1,8 +1,8 @@
 module Internal.Node exposing
     ( Error(..)
-    , Node
+    , Node(..)
     , addAfter
-    , childrenDict
+    , children
     , delete
     , descendant
     , filterMap
@@ -74,7 +74,7 @@ addAfterHelp p ( ts, val ) prevTs parent =
                         ( leftTs, left ) =
                             findInsertion ts
                                 ( prevTs, found )
-                                (childrenDict parent)
+                                (children parent)
 
                         nodePath =
                             Array.fromList p
@@ -165,8 +165,8 @@ update func p parent =
 
 find : (Node a -> Bool) -> Node a -> Maybe (Node a)
 find pred node =
-    Dict.get 0 (childrenDict node)
-        |> Maybe.andThen (findHelp pred (childrenDict node))
+    Dict.get 0 (children node)
+        |> Maybe.andThen (findHelp pred (children node))
 
 
 findHelp : (Node a -> Bool) -> Children a -> Node a -> Maybe (Node a)
@@ -205,12 +205,12 @@ maybeConst func node acc =
 
 foldl : (Node a -> b -> b) -> b -> Node a -> b
 foldl func acc node =
-    case Dict.get 0 (childrenDict node) of
+    case Dict.get 0 (children node) of
         Nothing ->
             acc
 
         Just left ->
-            childrenFold func acc left (childrenDict node)
+            childrenFold func acc left (children node)
 
 
 foldr : (Node a -> b -> b) -> b -> Node a -> b
@@ -224,15 +224,12 @@ childrenFold func acc left c =
         Nothing ->
             acc
 
-        Just ((Tombstone _ _) as node) ->
-            childrenFold func acc node c
-
         Just node ->
             childrenFold func (func node acc) node c
 
 
-childrenDict : Node a -> Children a
-childrenDict node =
+children : Node a -> Children a
+children node =
     case node of
         Node _ c _ _ ->
             c
@@ -259,7 +256,16 @@ next node =
 
 nextNode : Node a -> Children a -> Maybe (Node a)
 nextNode node c =
-    next node |> Maybe.andThen (\n -> Dict.get n c)
+    -- TODO: no tests
+    case next node |> Maybe.andThen (\n -> Dict.get n c) of
+        Nothing ->
+            Nothing
+
+        Just ((Tombstone _ _) as node_) ->
+            nextNode node_ c
+
+        Just node_ ->
+            Just node_
 
 
 updateNext : Int -> Node a -> Node a
@@ -277,7 +283,7 @@ updateNext n node =
 
 child : Int -> Node a -> Maybe (Node a)
 child ts node =
-    childrenDict node |> Dict.get ts
+    children node |> Dict.get ts
 
 
 descendant : List Int -> Node a -> Maybe (Node a)

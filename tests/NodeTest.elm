@@ -1,13 +1,15 @@
 module NodeTest exposing (..)
 
+import CRDTree.Node as Node
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer, int, intRange, list, string)
-import Internal.Node as Node
+import Internal.Node
     exposing
         ( Error(..)
         , Node
         , addAfter
         , children
+        , delete
         , root
         )
 import Internal.Operation as Operation exposing (Operation(..))
@@ -56,18 +58,6 @@ suite =
                             , Just 6
                             ]
             ]
-        , test "map" <|
-            \_ ->
-                flatExample
-                    |> Node.map Node.value
-                    |> Expect.equal
-                        [ Just 'a', Just 'b', Just 'c', Just 'd' ]
-        , test "filter map" <|
-            \_ ->
-                flatExample
-                    |> Node.filterMap Node.value
-                    |> Expect.equal
-                        [ 'a', 'b', 'c', 'd' ]
         , test "find" <|
             \_ ->
                 flatExample
@@ -92,6 +82,56 @@ suite =
                     |> Node.descendant [ 1, 2, 3, 4 ]
                     |> Maybe.map Node.timestamp
                     |> Expect.equal (Just 4)
+        , test "map" <|
+            \_ ->
+                flatExample
+                    |> Node.map Node.value
+                    |> Expect.equal
+                        [ Just 'a', Just 'b', Just 'c', Just 'd' ]
+        , test "filterMap" <|
+            \_ ->
+                flatExample
+                    |> Node.filterMap Node.value
+                    |> Expect.equal
+                        [ 'a', 'b', 'c', 'd' ]
+        , test "foldl" <|
+            \_ ->
+                flatExample
+                    |> Node.foldl (\n acc -> acc ++ [ Node.value n ]) []
+                    |> Expect.equal
+                        [ Just 'a', Just 'b', Just 'c', Just 'd' ]
+        , test "foldr" <|
+            \_ ->
+                flatExample
+                    |> Node.foldr (\n acc -> Node.value n :: acc) []
+                    |> Expect.equal
+                        [ Just 'a', Just 'b', Just 'c', Just 'd' ]
+        , test "loop" <|
+            \_ ->
+                flatExample
+                    |> Node.loop
+                        (\n acc ->
+                            if Node.value n == Just 'c' then
+                                Node.Done acc
+
+                            else
+                                Node.Take (acc ++ [ Node.value n ])
+                        )
+                        []
+                    |> Expect.equal
+                        [ Just 'a', Just 'b' ]
+        , test "head" <|
+            \_ ->
+                flatExample
+                    |> Node.head
+                    |> Maybe.andThen Node.value
+                    |> Expect.equal (Just 'a')
+        , test "last" <|
+            \_ ->
+                flatExample
+                    |> Node.last
+                    |> Maybe.andThen Node.value
+                    |> Expect.equal (Just 'd')
         ]
 
 
@@ -130,8 +170,10 @@ insertBiggerFirstExample =
 flatExample =
     addAfter [ 0 ] ( 1, 'a' ) root
         |> Result.andThen (addAfter [ 1 ] ( 2, 'b' ))
-        |> Result.andThen (addAfter [ 2 ] ( 3, 'c' ))
-        |> Result.andThen (addAfter [ 3 ] ( 4, 'd' ))
+        |> Result.andThen (addAfter [ 2 ] ( 3, 'x' ))
+        |> Result.andThen (addAfter [ 3 ] ( 4, 'c' ))
+        |> Result.andThen (addAfter [ 4 ] ( 5, 'd' ))
+        |> Result.andThen (delete [ 3 ])
         |> Result.withDefault root
 
 

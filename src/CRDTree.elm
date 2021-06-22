@@ -11,14 +11,16 @@ module CRDTree exposing
     , operationsSince
     , lastOperation
     , root
+    , parent
     , get
     , getValue
     , next
-    , previous
+    , prev
     , id
     , timestamp
     , cursor
     , moveCursorUp
+    , setCursor
     , lastReplicaTimestamp
     )
 
@@ -56,10 +58,11 @@ The path of a node in the tree is represented as a `List Int`.
 # Traversing
 
 @docs root
+@docs parent
 @docs get
 @docs getValue
 @docs next
-@docs previous
+@docs prev
 
 
 # Tree
@@ -68,6 +71,7 @@ The path of a node in the tree is represented as a `List Int`.
 @docs timestamp
 @docs cursor
 @docs moveCursorUp
+@docs setCursor
 
 
 # Replicas
@@ -77,6 +81,7 @@ The path of a node in the tree is represented as a `List Int`.
 -}
 
 import Array exposing (Array)
+import CRDTree.Node exposing (Step(..), loop)
 import CRDTree.Timestamp as Timestamp exposing (replicaId)
 import Dict exposing (Dict)
 import Internal.Node as Node exposing (Error(..), Node(..))
@@ -87,8 +92,9 @@ import Result
 {-| Failure to apply an operation
 -}
 type Error a
-    = InvalidPath (Operation a)
-    | NodeNotFound (Operation a)
+    = InvalidPath
+    | NotFound
+    | OperationFailed (Operation a)
 
 
 {-| A Replicated Tree, see [init](#init).
@@ -182,7 +188,22 @@ children discarded.
 -}
 delete : List Int -> CRDTree a -> Result (Error a) (CRDTree a)
 delete path tree =
+    let
+        mnode =
+            get path tree
+
+        mprevious =
+            mnode
+                |> Maybe.map (\n -> parent n tree)
+                |> Maybe.withDefault (root tree)
+                |> Node.find (\n -> next n tree == mnode)
+
+        pathPrevious =
+            Maybe.map Node.path mprevious
+                |> Maybe.withDefault path
+    in
     applyLocal (Delete path) tree
+        |> Result.andThen (setCursor pathPrevious)
 
 
 {-| Apply a list of operations
@@ -252,19 +273,13 @@ applyLocal operation ((CRDTree record) as tree) =
 
         Delete path ->
             let
-                nodeTimestamp =
-                    Operation.timestamp operation |> Maybe.withDefault 0
-
-                -- siblings =
-                --     moveCursorUp tree
-                --         |> cursor
-                --         |> get
-                --         |> Node.find (\n -> Node.path (Node.nextNode n) == path)
-                -- _ = Array.fromList path |> Array.slice 0 -1
+                operationTimestamp =
+                    Operation.timestamp operation
+                        |> Maybe.withDefault 0
             in
             record.root
                 |> Node.delete path
-                |> updateTree operation path nodeTimestamp tree
+                |> updateTree operation path operationTimestamp tree
 
         Batch ops ->
             batch (List.map apply ops) tree
@@ -290,14 +305,14 @@ updateTree operation path ts (CRDTree rec) result =
                 |> CRDTree
                 |> Ok
 
-        Err AlreadyApplied ->
-            CRDTree { rec | lastOperation = Batch [] } |> Ok
+        Err Node.AlreadyApplied ->
+            Ok (CRDTree { rec | lastOperation = Batch [] })
 
         Err Node.InvalidPath ->
-            InvalidPath operation |> Err
+            Err InvalidPath
 
         Err Node.NotFound ->
-            NodeNotFound operation |> Err
+            Err (OperationFailed operation)
 
 
 mergeOperations : CRDTree a -> CRDTree a -> CRDTree a
@@ -400,6 +415,18 @@ root (CRDTree record) =
     record.root
 
 
+{-| Get the parent node
+-}
+parent : Node a -> CRDTree a -> Node a
+parent node tree =
+    Node.path node
+        |> Array.fromList
+        |> Array.slice 0 -1
+        |> Array.toList
+        |> (\path -> get path tree)
+        |> Maybe.withDefault (root tree)
+
+
 {-| Get a value at path
 
     treeA : CRDTree String
@@ -499,44 +526,36 @@ moveCursorUp ((CRDTree record) as tree) =
         CRDTree { record | cursor = record.cursor |> Array.slice 0 -1 }
 
 
+{-| Set the cursor to point to a node
+
+Fails if the node does not exists
+
+-}
+setCursor : List Int -> CRDTree a -> Result.Result (Error a) (CRDTree a)
+setCursor path ((CRDTree record) as tree) =
+    case get path tree of
+        Nothing ->
+            Err NotFound
+
+        Just _ ->
+            Ok <| CRDTree { record | cursor = Array.fromList path }
+
+
 {-| Get the next node after another
 -}
 next : Node a -> CRDTree a -> Maybe (Node a)
 next node tree =
     -- TODO: no tests
-    Node.childrenDict (parent tree node)
+    Node.children (parent node tree)
         |> Node.nextNode node
 
 
 {-| Get the previous node before another
 -}
-previous : Node a -> CRDTree a -> Maybe (Node a)
-previous node tree =
+prev : Node a -> CRDTree a -> Maybe (Node a)
+prev node tree =
     -- TODO: no tests
-    let
-        nodeTimestamp =
-            Node.timestamp node
-    in
-    parent tree node
-        |> Node.find (\n -> Node.next n == Just nodeTimestamp)
-
-
-parent : CRDTree a -> Node a -> Node a
-parent tree node =
-    Node.path node
-        |> Array.fromList
-        |> Array.slice 0 -1
-        |> Array.toList
-        |> (\path -> get path tree)
-        |> Maybe.withDefault (root tree)
-
-
-
--- next ((CRDTree record) as tree) =
---     if Array.length record.cursor == 1 then
---         tree
---     else
---         CRDTree { record | cursor = record.cursor |> Array.slice 0 -1 }
+    Node.find (\n -> next n tree == Just node) (parent node tree)
 
 
 buildPath : Int -> List Int -> Array Int
