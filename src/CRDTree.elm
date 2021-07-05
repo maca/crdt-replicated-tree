@@ -75,6 +75,10 @@ The path of a node in the tree is represented as a `List Int`.
 
 @docs id
 @docs timestamp
+
+
+# Cursor
+
 @docs cursor
 @docs moveCursorUp
 @docs setCursor
@@ -573,11 +577,12 @@ prev node tree =
         |> Maybe.andThen (Node.find (\n -> next n tree == Just node))
 
 
-{-| Walk a portion of the tree reducing from the left from a starting node,
-or from the beginning, stopping at an arbitrary point.
+{-| Walk a portion of the tree reducing leaves from the left from a starting
+node, or from the beginning, stopping at an arbitrary point.
 -}
 walk : (Node a -> b -> Step b) -> b -> Maybe (Node a) -> CRDTree a -> b
 walk func acc start tree =
+    -- TODO: no tests
     let
         doWalk node =
             Maybe.map (Node.children >> walkHelp func acc node)

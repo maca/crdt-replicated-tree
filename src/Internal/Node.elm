@@ -97,7 +97,7 @@ findInsertion ts ( n, node ) c =
             ( n, node )
 
         Just found ->
-            if ts < Tuple.first found then
+            if ts > Tuple.first found then
                 ( n, node )
 
             else

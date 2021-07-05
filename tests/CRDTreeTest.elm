@@ -26,6 +26,7 @@ suite =
     describe "CRDTree"
         [ testAdd "adds node"
         , testAddAfter "adds after node"
+        , testAddAfter2 "adds between node s"
         , testAddBranch
             "adds branch"
         , testDelete
@@ -113,6 +114,44 @@ testAddAfter description =
                         [ Add 1 [ 0 ] "a"
                         , Add 2 [ 1 ] "b"
                         , Add 3 [ 1 ] "c"
+                        ]
+                in
+                expectOperations operations result
+        , test "sets last operation" <|
+            always (expectLastOperation operation result)
+        ]
+
+
+testAddAfter2 description =
+    let
+        tree =
+            CRDTree.init 0
+
+        operation =
+            Add 4 [ 1 ] "z"
+
+        result =
+            add "a" tree
+                |> Result.andThen (add "b")
+                |> Result.andThen (add "c")
+                |> Result.andThen (addAfter [ 1 ] "z")
+    in
+    describe description
+        [ test "succeeds" <|
+            always (Expect.ok result)
+        , test "addAfter adds node in between node" <|
+            \_ ->
+                result
+                    |> Result.map (CRDTree.root >> Node.map Node.value)
+                    |> Expect.equal (Ok [ Just "a", Just "z", Just "b", Just "c" ])
+        , test "addAfter sets tree operations" <|
+            \_ ->
+                let
+                    operations =
+                        [ Add 1 [ 0 ] "a"
+                        , Add 2 [ 1 ] "b"
+                        , Add 3 [ 2 ] "c"
+                        , Add 4 [ 1 ] "z"
                         ]
                 in
                 expectOperations operations result
